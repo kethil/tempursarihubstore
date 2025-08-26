@@ -1,4 +1,4 @@
-import { Home, FileText, Info, ShoppingBag } from "lucide-react";
+import { Home, FileText, Info, ShoppingBag, Package } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
@@ -23,16 +23,22 @@ const navItems: NavItem[] = [
     path: "/layanan",
   },
   {
+    id: "shop",
+    label: "Toko",
+    icon: ShoppingBag,
+    path: "/toko",
+  },
+  {
     id: "info",
     label: "Informasi",
     icon: Info,
     path: "/informasi",
   },
   {
-    id: "shop",
-    label: "Toko",
-    icon: ShoppingBag,
-    path: "/toko",
+    id: "orders",
+    label: "Pesanan",
+    icon: Package,
+    path: "/orders",
   },
 ];
 

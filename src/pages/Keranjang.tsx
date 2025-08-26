@@ -31,7 +31,7 @@ export default function Keranjang() {
   const { data: cartSummary, refetch: refetchCart, isLoading } = useQuery({
     queryKey: ["cart-summary", user?.id],
     queryFn: () => cartApi.getCartSummary(user?.id, shopUtils.getSessionId()),
-    enabled: true,
+    enabled: !!user?.id || !!shopUtils.getSessionId(),
   });
 
   // Update cart item quantity
@@ -259,12 +259,8 @@ export default function Keranjang() {
               <div className="space-y-3">
                 <Button 
                   className="w-full h-12 text-base font-semibold"
-                  onClick={() => {
-                    toast({
-                      title: "Coming Soon",
-                      description: "Fitur checkout akan segera tersedia",
-                    });
-                  }}
+                  onClick={() => navigate("/checkout")}
+                  disabled={cartItems.length === 0}
                 >
                   Lanjut ke Pembayaran
                 </Button>
