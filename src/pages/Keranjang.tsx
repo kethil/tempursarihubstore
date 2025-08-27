@@ -8,15 +8,17 @@ import { Input } from "@/components/ui/input";
 import { ArrowLeft, Plus, Minus, Trash2, ShoppingBag } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { cartApi, shopUtils, type CartItem } from "@/services/shopApi";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Keranjang() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [user, setUser] = useState<any>(null);
+  const fromCheckout = searchParams.get('from') === 'checkout';
 
   // Get current user
   useEffect(() => {
@@ -133,10 +135,12 @@ export default function Keranjang() {
               <ShoppingBag className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
               <h3 className="font-semibold text-lg mb-2">Keranjang Kosong</h3>
               <p className="text-muted-foreground mb-4">
-                Belum ada produk dalam keranjang Anda
+                {fromCheckout 
+                  ? "Pesanan Anda telah berhasil dibuat. Terima kasih telah berbelanja!" 
+                  : "Belum ada produk dalam keranjang Anda"}
               </p>
               <Button onClick={() => navigate("/toko")}>
-                Mulai Belanja
+                {fromCheckout ? "Lanjut Belanja" : "Mulai Belanja"}
               </Button>
             </Card>
           ) : (

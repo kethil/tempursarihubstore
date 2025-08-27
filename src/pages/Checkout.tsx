@@ -14,6 +14,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { cartApi, ordersApi, shopUtils, type CartItem } from "@/services/shopApi";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { sendOrderConfirmationEmail } from "@/services/emailService";
 
 type PaymentMethod = 'cash_on_delivery' | 'qris';
 
@@ -94,15 +95,15 @@ export default function Checkout() {
 
   // Redirect if cart is empty
   useEffect(() => {
-    if (!isLoading && cartItems.length === 0) {
-      navigate('/keranjang');
+    if (!isLoading && cartItems.length === 0 && !orderSuccess) {
+      navigate('/keranjang?from=checkout');
       toast({
         title: "Keranjang kosong",
         description: "Silakan tambahkan produk ke keranjang terlebih dahulu",
         variant: "destructive"
       });
     }
-  }, [cartItems.length, isLoading, navigate, toast]);
+  }, [cartItems.length, isLoading, orderSuccess, navigate, toast]);
 
   const handleInputChange = (field: keyof CheckoutFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -140,11 +141,24 @@ export default function Checkout() {
       // Create order
       const order = await ordersApi.createOrder(orderData, user?.id);
       
+      // Send order confirmation email
+      if (formData.customer_email) {
+        await sendOrderConfirmationEmail(
+          formData.customer_email,
+          formData.customer_name,
+          order.order_number,
+          order
+        );
+      }
+      
       // Clear cart after successful order
       await cartApi.clearCart(user?.id, shopUtils.getSessionId());
       
       setOrderNumber(order.order_number);
       setOrderSuccess(true);
+      
+      // Set flag to prevent redirect loop
+      sessionStorage.setItem('justCompletedOrder', 'true');
 
       toast({
         title: "Pesanan berhasil dibuat",
@@ -155,7 +169,9 @@ export default function Checkout() {
       console.error('Checkout error:', error);
       toast({
         title: "Gagal membuat pesanan",
-        description: error.message || "Terjadi kesalahan saat membuat pesanan",
+        description: error.message.includes("technical issues") 
+          ? "Kami sedang mengalami masalah teknis dengan pemrosesan pesanan. Silakan coba lagi nanti atau hubungi support." 
+          : error.message || "Terjadi kesalahan saat membuat pesanan",
         variant: "destructive"
       });
     } finally {
@@ -394,15 +410,15 @@ export default function Checkout() {
             </div>
           </Card>
 
-                     {/* Submit Button */}
-           <Button 
-             type="submit"
-             className="w-full h-12 text-base font-semibold"
-             disabled={isSubmitting || cartItems.length === 0}
-           >
-             {isSubmitting ? "Memproses Pesanan..." : "Buat Pesanan"}
-           </Button>
-         </form>
+          {/* Submit Button */}
+          <Button 
+            type="submit"
+            className="w-full h-12 text-base font-semibold"
+            disabled={isSubmitting || cartItems.length === 0}
+          >
+            {isSubmitting ? "Memproses Pesanan..." : "Buat Pesanan"}
+          </Button>
+        </form>
         )}
       </MobileContent>
       

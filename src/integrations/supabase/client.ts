@@ -15,3 +15,52 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
   }
 });
+
+// Extended user type with role information
+export type UserProfile = {
+  id: string;
+  full_name: string | null;
+  role: 'user' | 'admin' | 'operator' | null;
+  user_id: string;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+// Function to get user profile with role
+export const getUserProfile = async (userId: string): Promise<UserProfile | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+    
+    if (error) {
+      console.error('Error fetching user profile:', error);
+      return null;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error in getUserProfile:', error);
+    return null;
+  }
+};
+
+// Function to check if user is admin
+export const isAdmin = async (userId: string): Promise<boolean> => {
+  const profile = await getUserProfile(userId);
+  return profile?.role === 'admin';
+};
+
+// Function to check if user is operator
+export const isOperator = async (userId: string): Promise<boolean> => {
+  const profile = await getUserProfile(userId);
+  return profile?.role === 'operator';
+};
+
+// Function to check if user is authorized for the dashboard
+export const isAuthorized = async (userId: string): Promise<boolean> => {
+  const profile = await getUserProfile(userId);
+  return profile?.role === 'admin' || profile?.role === 'operator';
+};
