@@ -53,14 +53,8 @@ export const isAdmin = async (userId: string): Promise<boolean> => {
   return profile?.role === 'admin';
 };
 
-// Function to check if user is operator
-export const isOperator = async (userId: string): Promise<boolean> => {
-  const profile = await getUserProfile(userId);
-  return profile?.role === 'operator';
-};
-
-// Function to check if user is authorized for the dashboard
+// Function to check if user is authorized for the dashboard (admin only)
 export const isAuthorized = async (userId: string): Promise<boolean> => {
   const profile = await getUserProfile(userId);
-  return profile?.role === 'admin' || profile?.role === 'operator';
+  return profile?.role === 'admin';
 };

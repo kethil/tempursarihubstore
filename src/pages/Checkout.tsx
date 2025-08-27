@@ -69,16 +69,20 @@ export default function Checkout() {
     queryKey: ["cart-summary", user?.id],
     queryFn: () => cartApi.getCartSummary(user?.id, shopUtils.getSessionId()),
     enabled: !!user?.id || !!shopUtils.getSessionId(),
-    retry: 1,
-    onError: (error) => {
-      console.error('Cart fetch error:', error);
+    retry: 1
+  });
+
+  // Handle cart error
+  useEffect(() => {
+    if (cartError) {
+      console.error('Cart fetch error:', cartError);
       toast({
         title: "Error loading cart",
         description: "Gagal memuat data keranjang",
         variant: "destructive"
       });
     }
-  });
+  }, [cartError, toast]);
 
   const cartItems = cartSummary?.items || [];
   const totalItems = cartSummary?.totalItems || 0;
@@ -93,17 +97,8 @@ export default function Checkout() {
     cartError
   });
 
-  // Redirect if cart is empty
-  useEffect(() => {
-    if (!isLoading && cartItems.length === 0 && !orderSuccess) {
-      navigate('/keranjang?from=checkout');
-      toast({
-        title: "Keranjang kosong",
-        description: "Silakan tambahkan produk ke keranjang terlebih dahulu",
-        variant: "destructive"
-      });
-    }
-  }, [cartItems.length, isLoading, orderSuccess, navigate, toast]);
+  // Only redirect if cart is empty and user tries to submit order
+  // Remove automatic redirect to allow users to see buyer information form
 
   const handleInputChange = (field: keyof CheckoutFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -111,6 +106,17 @@ export default function Checkout() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check if cart is empty
+    if (cartItems.length === 0) {
+      toast({
+        title: "Keranjang kosong",
+        description: "Silakan tambahkan produk ke keranjang terlebih dahulu",
+        variant: "destructive"
+      });
+      navigate('/toko');
+      return;
+    }
     
     if (!formData.customer_name || !formData.customer_phone || !formData.delivery_address) {
       toast({
@@ -266,6 +272,25 @@ export default function Checkout() {
           </div>
         ) : (
         <form onSubmit={handleSubmit} className="p-4 space-y-6">
+          {/* Empty Cart Warning */}
+          {cartItems.length === 0 && (
+            <Card className="p-4 bg-yellow-50 border-yellow-200">
+              <div className="flex items-center gap-2 text-yellow-800">
+                <span className="font-medium">⚠️ Keranjang Kosong</span>
+              </div>
+              <p className="text-sm text-yellow-700 mt-1">
+                Anda dapat mengisi informasi buyer terlebih dahulu, namun mohon tambahkan produk ke keranjang sebelum menyelesaikan pesanan.
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-2 text-yellow-800 border-yellow-300 hover:bg-yellow-100"
+                onClick={() => navigate('/toko')}
+              >
+                Tambah Produk
+              </Button>
+            </Card>
+          )}
           {/* Customer Information */}
           <Card className="p-4">
             <h3 className="font-semibold mb-4">Informasi Pelanggan</h3>
@@ -364,59 +389,75 @@ export default function Checkout() {
           {/* Order Summary */}
           <Card className="p-4">
             <h3 className="font-semibold mb-4">Ringkasan Pesanan</h3>
-            <div className="space-y-3">
-              {cartItems.map((item) => (
-                <div key={item.id} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 flex-shrink-0 overflow-hidden rounded">
-                      <img 
-                        src={shopUtils.getProductMainImage(item.product!)} 
-                        alt={item.product?.name}
-                        className="w-full h-full object-cover"
-                      />
+            {cartItems.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>Belum ada produk dalam keranjang</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-2"
+                  onClick={() => navigate('/toko')}
+                >
+                  Pilih Produk
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {cartItems.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 flex-shrink-0 overflow-hidden rounded">
+                        <img 
+                          src={shopUtils.getProductMainImage(item.product!)} 
+                          alt={item.product?.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">{item.product?.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {shopUtils.formatPrice(item.product?.price || 0)} x {item.quantity}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-sm">{item.product?.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {shopUtils.formatPrice(item.product?.price || 0)} x {item.quantity}
-                      </p>
-                    </div>
+                    <p className="font-medium text-sm">
+                      {shopUtils.formatPrice((item.product?.price || 0) * item.quantity)}
+                    </p>
                   </div>
-                  <p className="font-medium text-sm">
-                    {shopUtils.formatPrice((item.product?.price || 0) * item.quantity)}
-                  </p>
-                </div>
-              ))}
-              
-              <Separator />
-              
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Subtotal:</span>
-                  <span className="font-medium">{shopUtils.formatPrice(totalAmount)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Ongkir:</span>
-                  <span className="font-medium">Gratis</span>
-                </div>
+                ))}
+                
                 <Separator />
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-lg">Total:</span>
-                  <span className="font-bold text-lg text-primary">
-                    {shopUtils.formatPrice(totalAmount)}
-                  </span>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Subtotal:</span>
+                    <span className="font-medium">{shopUtils.formatPrice(totalAmount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Ongkir:</span>
+                    <span className="font-medium">Gratis</span>
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-lg">Total:</span>
+                    <span className="font-bold text-lg text-primary">
+                      {shopUtils.formatPrice(totalAmount)}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </Card>
 
           {/* Submit Button */}
           <Button 
             type="submit"
             className="w-full h-12 text-base font-semibold"
-            disabled={isSubmitting || cartItems.length === 0}
+            disabled={isSubmitting}
+            variant={cartItems.length === 0 ? "outline" : "default"}
           >
-            {isSubmitting ? "Memproses Pesanan..." : "Buat Pesanan"}
+            {isSubmitting ? "Memproses Pesanan..." : 
+             cartItems.length === 0 ? "Tambah Produk Untuk Melanjutkan" : "Buat Pesanan"}
           </Button>
         </form>
         )}

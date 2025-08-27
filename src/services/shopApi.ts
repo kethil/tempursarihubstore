@@ -38,6 +38,44 @@ export interface ProductFilters {
   status?: ProductStatus;
 }
 
+export interface CreateProductData {
+  name: string;
+  slug?: string;
+  description?: string;
+  short_description?: string;
+  sku?: string;
+  price: number;
+  original_price?: number;
+  stock_quantity?: number;
+  min_stock_level?: number;
+  status?: ProductStatus;
+  category_id?: string;
+  images?: string[];
+  specifications?: Record<string, any>;
+  weight_grams?: number;
+  dimensions?: Record<string, number>;
+  is_featured?: boolean;
+  meta_title?: string;
+  meta_description?: string;
+}
+
+export interface UpdateProductData extends Partial<CreateProductData> {
+  id: string;
+}
+
+export interface CreateCategoryData {
+  name: string;
+  slug?: string;
+  description?: string;
+  image_url?: string;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
+export interface UpdateCategoryData extends Partial<CreateCategoryData> {
+  id: string;
+}
+
 // Categories API
 export const categoriesApi = {
   // Get all active categories
@@ -56,6 +94,21 @@ export const categoriesApi = {
     return data || [];
   },
 
+  // Get all categories for admin (including inactive)
+  async getAdminCategories(): Promise<Category[]> {
+    const { data, error } = await supabase
+      .from("categories")
+      .select("*")
+      .order("sort_order", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching admin categories:", error);
+      throw new Error(`Failed to fetch admin categories: ${error.message}`);
+    }
+
+    return data || [];
+  },
+
   // Get category by slug
   async getCategoryBySlug(slug: string): Promise<Category | null> {
     const { data, error } = await supabase
@@ -69,6 +122,117 @@ export const categoriesApi = {
       if (error.code === "PGRST116") return null; // Not found
       console.error("Error fetching category:", error);
       throw new Error(`Failed to fetch category: ${error.message}`);
+    }
+
+    return data;
+  },
+
+  // Get category by ID
+  async getCategoryById(id: string): Promise<Category | null> {
+    const { data, error } = await supabase
+      .from("categories")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error) {
+      if (error.code === "PGRST116") return null; // Not found
+      console.error("Error fetching category:", error);
+      throw new Error(`Failed to fetch category: ${error.message}`);
+    }
+
+    return data;
+  },
+
+  // Create new category (admin only)
+  async createCategory(categoryData: CreateCategoryData): Promise<Category> {
+    // Generate slug from name
+    const slug = categoryData.name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim();
+
+    const { data, error } = await supabase
+      .from("categories")
+      .insert({
+        ...categoryData,
+        slug,
+        is_active: categoryData.is_active ?? true,
+        sort_order: categoryData.sort_order ?? 0,
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Error creating category:", error);
+      throw new Error(`Failed to create category: ${error.message}`);
+    }
+
+    return data;
+  },
+
+  // Update category (admin only)
+  async updateCategory(categoryData: UpdateCategoryData): Promise<Category> {
+    const { id, ...updateData } = categoryData;
+    
+    // Generate new slug if name is being updated
+    if (updateData.name) {
+      (updateData as any).slug = updateData.name
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .trim();
+    }
+
+    const { data, error } = await supabase
+      .from("categories")
+      .update(updateData)
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Error updating category:", error);
+      throw new Error(`Failed to update category: ${error.message}`);
+    }
+
+    return data;
+  },
+
+  // Delete category (admin only)
+  async deleteCategory(id: string): Promise<void> {
+    const { error } = await supabase
+      .from("categories")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error deleting category:", error);
+      throw new Error(`Failed to delete category: ${error.message}`);
+    }
+  },
+
+  // Toggle category status (admin only)
+  async toggleCategoryStatus(id: string): Promise<Category> {
+    // First get current status
+    const category = await this.getCategoryById(id);
+    if (!category) {
+      throw new Error("Category not found");
+    }
+
+    const { data, error } = await supabase
+      .from("categories")
+      .update({ is_active: !category.is_active })
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) {
+      console.error("Error toggling category status:", error);
+      throw new Error(`Failed to toggle category status: ${error.message}`);
     }
 
     return data;
@@ -164,6 +328,204 @@ export const productsApi = {
     }
 
     return data;
+  },
+
+  // Get all products for admin (including inactive)
+  async getAdminProducts(): Promise<Product[]> {
+    const { data, error } = await supabase
+      .from("products")
+      .select(`
+        *,
+        category:categories(*)
+      `)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching admin products:", error);
+      throw new Error(`Failed to fetch admin products: ${error.message}`);
+    }
+
+    return data || [];
+  },
+
+  // Create new product (admin only)
+  async createProduct(productData: CreateProductData): Promise<Product> {
+    // Generate slug from name
+    const slug = productData.name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim();
+
+    const { data, error } = await supabase
+      .from("products")
+      .insert({
+        ...productData,
+        slug,
+        status: productData.status ?? 'active',
+        stock_quantity: productData.stock_quantity ?? 0,
+        min_stock_level: productData.min_stock_level ?? 5,
+        is_featured: productData.is_featured ?? false,
+        images: productData.images ?? [],
+        specifications: productData.specifications ?? {},
+      })
+      .select(`
+        *,
+        category:categories(*)
+      `)
+      .single();
+
+    if (error) {
+      console.error("Error creating product:", error);
+      throw new Error(`Failed to create product: ${error.message}`);
+    }
+
+    return data;
+  },
+
+  // Update product (admin only)
+  async updateProduct(productData: UpdateProductData): Promise<Product> {
+    const { id, ...updateData } = productData;
+    
+    // Generate new slug if name is being updated
+    if (updateData.name) {
+      (updateData as any).slug = updateData.name
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .trim();
+    }
+
+    const { data, error } = await supabase
+      .from("products")
+      .update(updateData)
+      .eq("id", id)
+      .select(`
+        *,
+        category:categories(*)
+      `)
+      .single();
+
+    if (error) {
+      console.error("Error updating product:", error);
+      throw new Error(`Failed to update product: ${error.message}`);
+    }
+
+    return data;
+  },
+
+  // Delete product (admin only)
+  async deleteProduct(id: string): Promise<void> {
+    const { error } = await supabase
+      .from("products")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Error deleting product:", error);
+      throw new Error(`Failed to delete product: ${error.message}`);
+    }
+  },
+
+  // Update product stock (admin only)
+  async updateProductStock(id: string, stockQuantity: number): Promise<Product> {
+    const { data, error } = await supabase
+      .from("products")
+      .update({ stock_quantity: stockQuantity })
+      .eq("id", id)
+      .select(`
+        *,
+        category:categories(*)
+      `)
+      .single();
+
+    if (error) {
+      console.error("Error updating product stock:", error);
+      throw new Error(`Failed to update product stock: ${error.message}`);
+    }
+
+    return data;
+  },
+
+  // Toggle product status (admin only)
+  async toggleProductStatus(id: string): Promise<Product> {
+    // First get current status
+    const product = await this.getProductById(id);
+    if (!product) {
+      throw new Error("Product not found");
+    }
+
+    const newStatus = product.status === 'active' ? 'inactive' : 'active';
+
+    const { data, error } = await supabase
+      .from("products")
+      .update({ status: newStatus })
+      .eq("id", id)
+      .select(`
+        *,
+        category:categories(*)
+      `)
+      .single();
+
+    if (error) {
+      console.error("Error toggling product status:", error);
+      throw new Error(`Failed to toggle product status: ${error.message}`);
+    }
+
+    return data;
+  },
+
+  // Bulk update product status (admin only)
+  async bulkUpdateProductStatus(ids: string[], status: ProductStatus): Promise<void> {
+    const { error } = await supabase
+      .from("products")
+      .update({ status })
+      .in("id", ids);
+
+    if (error) {
+      console.error("Error bulk updating product status:", error);
+      throw new Error(`Failed to bulk update product status: ${error.message}`);
+    }
+  },
+
+  // Get products by category (admin view)
+  async getProductsByCategory(categoryId: string): Promise<Product[]> {
+    const { data, error } = await supabase
+      .from("products")
+      .select(`
+        *,
+        category:categories(*)
+      `)
+      .eq("category_id", categoryId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching products by category:", error);
+      throw new Error(`Failed to fetch products by category: ${error.message}`);
+    }
+
+    return data || [];
+  },
+
+  // Search products for admin
+  async searchAdminProducts(query: string): Promise<Product[]> {
+    const { data, error } = await supabase
+      .from("products")
+      .select(`
+        *,
+        category:categories(*)
+      `)
+      .or(`name.ilike.%${query}%,description.ilike.%${query}%,sku.ilike.%${query}%`)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error searching admin products:", error);
+      throw new Error(`Failed to search admin products: ${error.message}`);
+    }
+
+    return data || [];
   },
 };
 
@@ -406,6 +768,7 @@ export const ordersApi = {
       }
 
       // Try to create order
+      let finalOrder;
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert(insertData)
@@ -433,13 +796,16 @@ export const ordersApi = {
               throw new Error(`Failed to create order: ${anonError.message}`);
             }
             
-            order = anonOrder;
+            // Assign the result to finalOrder
+            finalOrder = anonOrder;
           } else {
             throw new Error("We're experiencing technical issues with order processing. Please try again later or contact support.");
           }
         } else {
           throw new Error(`Failed to create order: ${orderError.message}`);
         }
+      } else {
+        finalOrder = order;
       }
 
       // Add order items and calculate totals
@@ -478,6 +844,9 @@ export const ordersApi = {
         orderItems.push(orderItem);
       }
 
+      // Use the final order (either original or anonymous)
+      const orderToUpdate = finalOrder || order;
+
       // Update order totals
       const deliveryFee = 0; // Fixed delivery for now
       const totalAmount = subtotal + deliveryFee;
@@ -489,8 +858,8 @@ export const ordersApi = {
           delivery_fee: deliveryFee,
           total_amount: totalAmount,
         })
-        .eq("id", order.id)
-        .select("id, user_id, customer_name, customer_phone, customer_email, delivery_address, delivery_notes, payment_method, subtotal, delivery_fee, total_amount, status, order_number, created_at, updated_at")
+        .eq("id", orderToUpdate.id)
+        .select("*")
         .single();
 
       if (updateError) {

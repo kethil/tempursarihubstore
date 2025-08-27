@@ -24,7 +24,7 @@ export default function AdminRoute() { // No more children prop
         const userProfile = await getUserProfile(user.id);
         console.log("AdminRoute - Fetched Profile:", userProfile);
         
-        if (!userProfile || (userProfile.role !== 'admin' && userProfile.role !== 'operator')) {
+        if (!userProfile || userProfile.role !== 'admin') {
           toast({ title: "Akses Ditolak", description: "Anda tidak memiliki izin untuk mengakses halaman ini", variant: "destructive" });
           navigate("/toko");
           return;
