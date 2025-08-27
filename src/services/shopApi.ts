@@ -11,10 +11,46 @@ export type CartItem = Database["public"]["Tables"]["cart_items"]["Row"] & {
 };
 export type Order = Database["public"]["Tables"]["orders"]["Row"];
 export type OrderItem = Database["public"]["Tables"]["order_items"]["Row"];
+export type OrderStatusHistory = Database["public"]["Tables"]["order_status_history"]["Row"];
 export type OrderStatus = Database["public"]["Enums"]["order_status"];
 export type PaymentMethod = Database["public"]["Enums"]["payment_method"];
+export type PaymentStatus = Database["public"]["Enums"]["payment_status"];
 export type ProductStatus = Database["public"]["Enums"]["product_status"];
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+
+// Extended order interface with related data
+export interface OrderWithDetails extends Order {
+  order_items?: (OrderItem & {
+    product?: Partial<Product> & {
+      id: string;
+      name: string;
+      price: number;
+      sku?: string | null;
+      images?: any;
+      category?: { name: string } | null;
+    };
+  })[];
+  status_history?: OrderStatusHistory[];
+  customer_profile?: Profile;
+}
+
+export interface OrderFilters {
+  status?: OrderStatus;
+  payment_method?: PaymentMethod;
+  payment_status?: PaymentStatus;
+  customer_name?: string;
+  order_number?: string;
+  date_from?: string;
+  date_to?: string;
+  user_id?: string;
+}
+
+export interface UpdateOrderStatusData {
+  order_id: string;
+  new_status: OrderStatus;
+  notes?: string;
+  updated_by?: string;
+}
 
 export interface CreateOrderData {
   customer_name: string;
@@ -743,6 +779,324 @@ export const cartApi = {
 
 // Orders API
 export const ordersApi = {
+  // Get all orders with filters (admin)
+  async getAdminOrders(filters: OrderFilters = {}): Promise<OrderWithDetails[]> {
+    let query = supabase
+      .from("orders")
+      .select(`
+        *,
+        order_items(
+          *,
+          product:products(
+            id,
+            name,
+            price,
+            sku,
+            images
+          )
+        )
+      `);
+
+    // Apply filters
+    if (filters.status) {
+      query = query.eq("status", filters.status);
+    }
+
+    if (filters.payment_method) {
+      query = query.eq("payment_method", filters.payment_method);
+    }
+
+    if (filters.payment_status) {
+      query = query.eq("payment_status", filters.payment_status);
+    }
+
+    if (filters.customer_name) {
+      query = query.ilike("customer_name", `%${filters.customer_name}%`);
+    }
+
+    if (filters.order_number) {
+      query = query.ilike("order_number", `%${filters.order_number}%`);
+    }
+
+    if (filters.user_id) {
+      query = query.eq("user_id", filters.user_id);
+    }
+
+    if (filters.date_from) {
+      query = query.gte("created_at", filters.date_from);
+    }
+
+    if (filters.date_to) {
+      query = query.lte("created_at", filters.date_to);
+    }
+
+    query = query.order("created_at", { ascending: false });
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Error fetching admin orders:", error);
+      throw new Error(`Failed to fetch admin orders: ${error.message}`);
+    }
+
+    return (data || []) as unknown as OrderWithDetails[];
+  },
+
+  // Get detailed order by ID (admin)
+  async getOrderDetails(orderId: string): Promise<OrderWithDetails | null> {
+    const { data, error } = await supabase
+      .from("orders")
+      .select(`
+        *,
+        order_items(
+          *,
+          product:products(
+            id,
+            name,
+            price,
+            sku,
+            images,
+            category:categories(name)
+          )
+        ),
+        status_history:order_status_history(
+          *
+        )
+      `)
+      .eq("id", orderId)
+      .single();
+
+    if (error) {
+      if (error.code === "PGRST116") return null; // Not found
+      console.error("Error fetching order details:", error);
+      throw new Error(`Failed to fetch order details: ${error.message}`);
+    }
+
+    return data as unknown as OrderWithDetails;
+  },
+
+  // Update order status with history tracking (admin only)
+  async updateOrderStatus(statusData: UpdateOrderStatusData): Promise<Order> {
+    const { order_id, new_status, notes, updated_by } = statusData;
+
+    // Get current order to track old status
+    const currentOrder = await this.getOrderById(order_id);
+    if (!currentOrder) {
+      throw new Error("Order not found");
+    }
+
+    const old_status = currentOrder.status;
+
+    // Update order status
+    const { data: updatedOrder, error: updateError } = await supabase
+      .from("orders")
+      .update({ 
+        status: new_status,
+        updated_at: new Date().toISOString(),
+        // Set specific timestamps based on status
+        ...(new_status === 'confirmed' && { confirmed_at: new Date().toISOString() }),
+        ...(new_status === 'shipped' && { shipped_at: new Date().toISOString() }),
+        ...(new_status === 'delivered' && { delivered_at: new Date().toISOString() }),
+        ...(new_status === 'cancelled' && { cancelled_at: new Date().toISOString() }),
+      })
+      .eq("id", order_id)
+      .select("*")
+      .single();
+
+    if (updateError) {
+      console.error("Error updating order status:", updateError);
+      throw new Error(`Failed to update order status: ${updateError.message}`);
+    }
+
+    // Add status history entry
+    if (old_status !== new_status) {
+      const { error: historyError } = await supabase
+        .from("order_status_history")
+        .insert({
+          order_id,
+          old_status,
+          new_status,
+          notes,
+          updated_by,
+        });
+
+      if (historyError) {
+        console.error("Error creating status history:", historyError);
+        // Don't throw here as the main update succeeded
+      }
+    }
+
+    return updatedOrder;
+  },
+
+  // Get order status history
+  async getOrderStatusHistory(orderId: string): Promise<OrderStatusHistory[]> {
+    const { data, error } = await supabase
+      .from("order_status_history")
+      .select(`
+        *
+      `)
+      .eq("order_id", orderId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching order status history:", error);
+      throw new Error(`Failed to fetch order status history: ${error.message}`);
+    }
+
+    return data || [];
+  },
+
+  // Bulk update order status (admin only)
+  async bulkUpdateOrderStatus(
+    orderIds: string[],
+    status: OrderStatus,
+    notes?: string,
+    updatedBy?: string
+  ): Promise<void> {
+    // Update all orders
+    const { error: updateError } = await supabase
+      .from("orders")
+      .update({ 
+        status,
+        updated_at: new Date().toISOString(),
+        // Set specific timestamps based on status
+        ...(status === 'confirmed' && { confirmed_at: new Date().toISOString() }),
+        ...(status === 'shipped' && { shipped_at: new Date().toISOString() }),
+        ...(status === 'delivered' && { delivered_at: new Date().toISOString() }),
+        ...(status === 'cancelled' && { cancelled_at: new Date().toISOString() }),
+      })
+      .in("id", orderIds);
+
+    if (updateError) {
+      console.error("Error bulk updating order status:", updateError);
+      throw new Error(`Failed to bulk update order status: ${updateError.message}`);
+    }
+
+    // Add status history entries for each order
+    if (notes) {
+      const historyEntries = orderIds.map(orderId => ({
+        order_id: orderId,
+        old_status: null, // We don't track old status in bulk operations
+        new_status: status,
+        notes,
+        updated_by: updatedBy,
+      }));
+
+      const { error: historyError } = await supabase
+        .from("order_status_history")
+        .insert(historyEntries);
+
+      if (historyError) {
+        console.error("Error creating bulk status history:", historyError);
+        // Don't throw here as the main update succeeded
+      }
+    }
+  },
+
+  // Cancel order (admin only)
+  async cancelOrder(orderId: string, reason?: string, cancelledBy?: string): Promise<Order> {
+    return this.updateOrderStatus({
+      order_id: orderId,
+      new_status: 'cancelled',
+      notes: reason,
+      updated_by: cancelledBy,
+    });
+  },
+
+  // Search orders (admin)
+  async searchOrders(query: string): Promise<OrderWithDetails[]> {
+    const { data, error } = await supabase
+      .from("orders")
+      .select(`
+        *,
+        order_items(
+          *,
+          product:products(name)
+        )
+      `)
+      .or(`order_number.ilike.%${query}%,customer_name.ilike.%${query}%,customer_phone.ilike.%${query}%,customer_email.ilike.%${query}%`)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error searching orders:", error);
+      throw new Error(`Failed to search orders: ${error.message}`);
+    }
+
+    return (data || []) as unknown as OrderWithDetails[];
+  },
+
+  // Get orders by status (admin)
+  async getOrdersByStatus(status: OrderStatus): Promise<OrderWithDetails[]> {
+    return this.getAdminOrders({ status });
+  },
+
+  // Get order statistics (admin)
+  async getOrderStatistics(): Promise<{
+    total_orders: number;
+    pending_orders: number;
+    confirmed_orders: number;
+    processing_orders: number;
+    shipped_orders: number;
+    delivered_orders: number;
+    cancelled_orders: number;
+    total_revenue: number;
+    monthly_revenue: number;
+  }> {
+    // Get total order counts by status
+    const { data: statusCounts, error: statusError } = await supabase
+      .from("orders")
+      .select("status")
+      .not("status", "eq", "cancelled");
+
+    if (statusError) {
+      console.error("Error fetching order statistics:", statusError);
+      throw new Error(`Failed to fetch order statistics: ${statusError.message}`);
+    }
+
+    // Calculate revenue
+    const { data: revenueData, error: revenueError } = await supabase
+      .from("orders")
+      .select("total_amount, created_at")
+      .in("status", ["confirmed", "processing", "shipped", "delivered"]);
+
+    if (revenueError) {
+      console.error("Error fetching revenue data:", revenueError);
+      throw new Error(`Failed to fetch revenue data: ${revenueError.message}`);
+    }
+
+    const total_orders = statusCounts.length;
+    const pending_orders = statusCounts.filter(o => o.status === 'pending').length;
+    const confirmed_orders = statusCounts.filter(o => o.status === 'confirmed').length;
+    const processing_orders = statusCounts.filter(o => o.status === 'processing').length;
+    const shipped_orders = statusCounts.filter(o => o.status === 'shipped').length;
+    const delivered_orders = statusCounts.filter(o => o.status === 'delivered').length;
+    const cancelled_orders = statusCounts.filter(o => o.status === 'cancelled').length;
+
+    const total_revenue = revenueData.reduce((sum, order) => sum + (order.total_amount || 0), 0);
+    
+    // Calculate monthly revenue (current month)
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    const monthly_revenue = revenueData
+      .filter(order => {
+        const orderDate = new Date(order.created_at);
+        return orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
+      })
+      .reduce((sum, order) => sum + (order.total_amount || 0), 0);
+
+    return {
+      total_orders,
+      pending_orders,
+      confirmed_orders,
+      processing_orders,
+      shipped_orders,
+      delivered_orders,
+      cancelled_orders,
+      total_revenue,
+      monthly_revenue,
+    };
+  },
   // Create new order
   async createOrder(orderData: CreateOrderData, userId?: string): Promise<Order> {
     // Generate order number
@@ -924,37 +1278,6 @@ export const ordersApi = {
     }
 
     return data || [];
-  },
-
-  // Update order status (admin only)
-  async updateOrderStatus(
-    orderId: string,
-    status: OrderStatus,
-    notes?: string
-  ): Promise<Order> {
-    const { data, error } = await supabase
-      .from("orders")
-      .update({ status })
-      .eq("id", orderId)
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error updating order status:", error);
-      throw new Error(`Failed to update order status: ${error.message}`);
-    }
-
-    // Add to status history if notes provided
-    if (notes) {
-      await supabase.from("order_status_history").insert({
-        order_id: orderId,
-        old_status: data.status,
-        new_status: status,
-        notes,
-      });
-    }
-
-    return data;
   },
 };
 
