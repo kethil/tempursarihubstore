@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "Tempursari Village App",
+    "slug": "tempursari-village-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0891b2"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0891b2"
+      }
+    },
+    "scheme": "tempursari",
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0891b2"
+        }
+      ]
+    ]
+  }
+}

@@ -13,6 +13,7 @@ import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 import ProductManagement from "@/components/ProductManagement";
 import CategoryManagement from "@/components/CategoryManagement";
 import OrderManagement from "@/components/OrderManagement";
+import ServiceRequestManagement from "@/components/ServiceRequestManagement";
 
 export default function AdminDashboard() {
   const { profile } = useOutletContext<{ profile: UserProfile }>();
@@ -33,12 +34,13 @@ export default function AdminDashboard() {
         </div>
 
         <Tabs defaultValue="analytics" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="analytics">Analitik</TabsTrigger>
             <TabsTrigger value="products">Produk</TabsTrigger>
             <TabsTrigger value="categories">Kategori</TabsTrigger>
             <TabsTrigger value="orders">Pesanan</TabsTrigger>
             <TabsTrigger value="customers">Pelanggan</TabsTrigger>
+            <TabsTrigger value="services">Layanan</TabsTrigger>
           </TabsList>
 
           <TabsContent value="analytics">
@@ -62,6 +64,10 @@ export default function AdminDashboard() {
               <h2 className="text-xl font-semibold mb-4">Daftar Pelanggan</h2>
               {customers && <CustomerTable customers={customers} />}
             </Card>
+          </TabsContent>
+
+          <TabsContent value="services">
+            <ServiceRequestManagement />
           </TabsContent>
         </Tabs>
       </div>
