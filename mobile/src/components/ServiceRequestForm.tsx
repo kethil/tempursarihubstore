@@ -85,6 +85,12 @@ export const ServiceRequestForm: React.FC<ServiceRequestFormProps> = ({
     phoneNumber: '',
     purpose: '',
   });
+  const [errors, setErrors] = useState({
+    fullName: '',
+    nik: '',
+    phoneNumber: '',
+    purpose: '',
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const currentRequirements = requirements[serviceType] || ['Foto KTP', 'Dokumen pendukung lainnya'];
@@ -92,26 +98,93 @@ export const ServiceRequestForm: React.FC<ServiceRequestFormProps> = ({
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Real-time validation
+    let error = '';
+    switch (field) {
+      case 'fullName':
+        if (!value.trim()) {
+          error = 'Nama lengkap harus diisi';
+        } else if (value.trim().length < 3) {
+          error = 'Nama minimal 3 karakter';
+        }
+        break;
+      case 'nik':
+        if (!value.trim()) {
+          error = 'NIK harus diisi';
+        } else if (!/^[0-9]{16}$/.test(value)) {
+          error = 'NIK harus 16 digit angka';
+        }
+        break;
+      case 'phoneNumber':
+        if (!value.trim()) {
+          error = 'Nomor HP harus diisi';
+        } else if (!/^(08|\+628)[0-9]{8,12}$/.test(value)) {
+          error = 'Format nomor HP tidak valid';
+        }
+        break;
+      case 'purpose':
+        if (!value.trim()) {
+          error = 'Keperluan/tujuan harus diisi';
+        } else if (value.trim().length < 10) {
+          error = 'Keperluan minimal 10 karakter';
+        }
+        break;
+    }
+    
+    setErrors(prev => ({ ...prev, [field]: error }));
   };
 
   const validateForm = () => {
+    const newErrors = {
+      fullName: '',
+      nik: '',
+      phoneNumber: '',
+      purpose: '',
+    };
+    
+    let isValid = true;
+    
     if (!formData.fullName.trim()) {
-      Alert.alert('Error', 'Nama lengkap harus diisi');
-      return false;
+      newErrors.fullName = 'Nama lengkap harus diisi';
+      isValid = false;
+    } else if (formData.fullName.trim().length < 3) {
+      newErrors.fullName = 'Nama minimal 3 karakter';
+      isValid = false;
     }
-    if (!formData.nik.trim() || formData.nik.length !== 16) {
-      Alert.alert('Error', 'NIK harus diisi dengan 16 digit');
-      return false;
+    
+    if (!formData.nik.trim()) {
+      newErrors.nik = 'NIK harus diisi';
+      isValid = false;
+    } else if (!/^[0-9]{16}$/.test(formData.nik)) {
+      newErrors.nik = 'NIK harus 16 digit angka';
+      isValid = false;
     }
+    
     if (!formData.phoneNumber.trim()) {
-      Alert.alert('Error', 'Nomor HP harus diisi');
-      return false;
+      newErrors.phoneNumber = 'Nomor HP harus diisi';
+      isValid = false;
+    } else if (!/^(08|\+628)[0-9]{8,12}$/.test(formData.phoneNumber)) {
+      newErrors.phoneNumber = 'Format nomor HP tidak valid (contoh: 08123456789)';
+      isValid = false;
     }
+    
     if (!formData.purpose.trim()) {
-      Alert.alert('Error', 'Keperluan/tujuan harus diisi');
-      return false;
+      newErrors.purpose = 'Keperluan/tujuan harus diisi';
+      isValid = false;
+    } else if (formData.purpose.trim().length < 10) {
+      newErrors.purpose = 'Keperluan minimal 10 karakter';
+      isValid = false;
     }
-    return true;
+    
+    setErrors(newErrors);
+    
+    if (!isValid) {
+      const firstError = Object.values(newErrors).find(error => error);
+      Alert.alert('Form Tidak Valid', firstError);
+    }
+    
+    return isValid;
   };
 
   const handleSubmit = async () => {
@@ -128,15 +201,15 @@ export const ServiceRequestForm: React.FC<ServiceRequestFormProps> = ({
       const requestData = {
         full_name: formData.fullName,
         nik: formData.nik,
-        phone: formData.phoneNumber,
-        request_type: serviceType as any,
+        phone_number: formData.phoneNumber,
+        service_type: serviceType as any,
         user_id: user.id,
       };
 
       const response = await serviceRequestsApi.createServiceRequest(requestData);
       
-      // Generate a request number since mobile schema might not have it
-      const requestNumber = response.id ? `REQ-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${response.id.slice(-4).toUpperCase()}` : 'REQ-PENDING';
+      // Use the actual request_number from the response
+      const requestNumber = response.request_number || `REQ-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${response.id?.slice(-4).toUpperCase() || 'TEMP'}`;
       
       Alert.alert(
         'Permohonan Berhasil',
@@ -206,18 +279,19 @@ export const ServiceRequestForm: React.FC<ServiceRequestFormProps> = ({
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Nama Lengkap *</Text>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, errors.fullName ? styles.textInputError : null]}
               value={formData.fullName}
               onChangeText={(value) => handleInputChange('fullName', value)}
               placeholder="Masukkan nama lengkap"
               placeholderTextColor="#9ca3af"
             />
+            {errors.fullName ? <Text style={styles.errorText}>{errors.fullName}</Text> : null}
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>NIK *</Text>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, errors.nik ? styles.textInputError : null]}
               value={formData.nik}
               onChangeText={(value) => handleInputChange('nik', value)}
               placeholder="Masukkan NIK (16 digit)"
@@ -225,24 +299,26 @@ export const ServiceRequestForm: React.FC<ServiceRequestFormProps> = ({
               keyboardType="numeric"
               maxLength={16}
             />
+            {errors.nik ? <Text style={styles.errorText}>{errors.nik}</Text> : null}
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Nomor HP *</Text>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, errors.phoneNumber ? styles.textInputError : null]}
               value={formData.phoneNumber}
               onChangeText={(value) => handleInputChange('phoneNumber', value)}
               placeholder="Contoh: 081234567890"
               placeholderTextColor="#9ca3af"
               keyboardType="phone-pad"
             />
+            {errors.phoneNumber ? <Text style={styles.errorText}>{errors.phoneNumber}</Text> : null}
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Keperluan/Tujuan *</Text>
             <TextInput
-              style={[styles.textInput, styles.textArea]}
+              style={[styles.textInput, styles.textArea, errors.purpose ? styles.textInputError : null]}
               value={formData.purpose}
               onChangeText={(value) => handleInputChange('purpose', value)}
               placeholder="Jelaskan keperluan pengajuan surat ini"
@@ -251,6 +327,7 @@ export const ServiceRequestForm: React.FC<ServiceRequestFormProps> = ({
               numberOfLines={4}
               textAlignVertical="top"
             />
+            {errors.purpose ? <Text style={styles.errorText}>{errors.purpose}</Text> : null}
           </View>
         </View>
 
@@ -430,9 +507,20 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     backgroundColor: '#ffffff',
   },
+  textInputError: {
+    borderColor: '#ef4444',
+    borderWidth: 2,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#ef4444',
+    marginTop: 4,
+    marginLeft: 4,
+  },
   textArea: {
     height: 80,
     paddingTop: 12,
+    textAlignVertical: 'top',
   },
   processCard: {
     backgroundColor: '#ffffff',

@@ -32,9 +32,18 @@ class WAHAService {
     };
   }
 
+  private isConfigured(): boolean {
+    return !!
+      this.config.url && 
+      this.config.apiKey && 
+      this.config.apiKey !== 'your_waha_api_key' && 
+      this.config.apiKey !== '';
+  }
+
   private async sendMessage(phoneNumber: string, message: string): Promise<boolean> {
-    if (!this.config.url || !this.config.apiKey) {
-      console.log('WAHA not configured, simulating message send:', { phoneNumber, message });
+    if (!this.isConfigured()) {
+      console.log('WAHA not properly configured. Please set VITE_WAHA_API_KEY in .env file.');
+      console.log('Simulating message send:', { phoneNumber, message });
       return true;
     }
 
@@ -46,7 +55,7 @@ class WAHAService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.config.apiKey}`,
+          'X-API-Key': this.config.apiKey,
         },
         body: JSON.stringify({
           session: this.config.session,
@@ -56,7 +65,10 @@ class WAHAService {
       });
 
       if (!response.ok) {
-        throw new Error(`WAHA API error: ${response.status}`);
+        if (response.status === 401) {
+          throw new Error(`Authentication failed. Please check your WAHA API key.`);
+        }
+        throw new Error(`WAHA API error: ${response.status} ${response.statusText}`);
       }
 
       const result = await response.json();
@@ -226,24 +238,79 @@ Terima kasih!`;
     return this.sendMessage(request.phone_number, message);
   }
 
-  async testConnection(): Promise<boolean> {
+  async testConnection(): Promise<{ success: boolean; message: string; details?: any }> {
     if (!this.config.url) {
-      console.log('WAHA configuration not found');
-      return false;
+      return {
+        success: false,
+        message: 'WAHA URL not configured. Please set VITE_WAHA_URL in .env file.',
+      };
+    }
+
+    if (!this.isConfigured()) {
+      return {
+        success: false,
+        message: 'WAHA API key not configured. Please set a valid VITE_WAHA_API_KEY in .env file.',
+        details: {
+          url: this.config.url,
+          hasApiKey: !!this.config.apiKey,
+          apiKeyValue: this.config.apiKey === 'your_waha_api_key' ? 'placeholder_value' : 'configured',
+        }
+      };
     }
 
     try {
       const response = await fetch(`${this.config.url}/api/sessions`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.config.apiKey}`,
+          'X-API-Key': this.config.apiKey,
         },
       });
 
-      return response.ok;
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        
+        if (response.status === 401) {
+          errorMessage = 'Authentication failed. The API key is invalid or expired.';
+        } else if (response.status === 404) {
+          errorMessage = 'WAHA server endpoint not found. Check the server URL.';
+        } else if (response.status === 500) {
+          errorMessage = 'WAHA server internal error.';
+        }
+
+        return {
+          success: false,
+          message: errorMessage,
+          details: {
+            status: response.status,
+            statusText: response.statusText,
+            url: this.config.url,
+          }
+        };
+      }
+
+      const result = await response.json();
+      return {
+        success: true,
+        message: 'WAHA connection successful!',
+        details: result
+      };
     } catch (error) {
-      console.error('WAHA connection test failed:', error);
-      return false;
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        return {
+          success: false,
+          message: 'Cannot connect to WAHA server. Check if the server is running and the URL is correct.',
+          details: {
+            error: error.message,
+            url: this.config.url,
+          }
+        };
+      }
+
+      return {
+        success: false,
+        message: `Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        details: { error }
+      };
     }
   }
 }

@@ -21,15 +21,23 @@ export const WAHATestPanel = () => {
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<"unknown" | "connected" | "disconnected">("unknown");
+  const [lastTestResult, setLastTestResult] = useState<any>(null);
   
   const { toast } = useToast();
   const { sendTestNotification, testWAHAConnection } = useServiceNotifications();
+
+  const isWAHAConfigured = () => {
+    const apiKey = import.meta.env.VITE_WAHA_API_KEY;
+    const url = import.meta.env.VITE_WAHA_URL;
+    return url && apiKey && apiKey !== 'your_waha_api_key' && apiKey !== '';
+  };
 
   const handleTestConnection = async () => {
     setIsTestingConnection(true);
     
     try {
       const result = await testWAHAConnection();
+      setLastTestResult(result);
       setConnectionStatus(result.success ? "connected" : "disconnected");
       
       toast({
@@ -39,6 +47,7 @@ export const WAHATestPanel = () => {
       });
     } catch (error) {
       setConnectionStatus("disconnected");
+      setLastTestResult({ success: false, message: "Connection test failed", error });
       toast({
         title: "Connection Test Failed",
         description: "An error occurred while testing the connection",
@@ -180,7 +189,15 @@ export const WAHATestPanel = () => {
 
         {/* Configuration Info */}
         <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-          <h4 className="font-medium">Configuration</h4>
+          <h4 className="font-medium flex items-center">
+            Configuration Status
+            {!isWAHAConfigured() && (
+              <Badge variant="destructive" className="ml-2">
+                <XCircle className="h-3 w-3 mr-1" />
+                Not Configured
+              </Badge>
+            )}
+          </h4>
           <div className="text-sm space-y-1">
             <div className="flex justify-between">
               <span className="text-muted-foreground">WAHA URL:</span>
@@ -190,14 +207,54 @@ export const WAHATestPanel = () => {
               <span className="text-muted-foreground">Session:</span>
               <span className="font-mono">{import.meta.env.VITE_WAHA_SESSION || 'default'}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
               <span className="text-muted-foreground">API Key:</span>
-              <span className="font-mono">
-                {import.meta.env.VITE_WAHA_API_KEY ? '••••••••' : 'Not configured'}
-              </span>
+              <div className="flex items-center space-x-2">
+                <span className="font-mono">
+                  {!import.meta.env.VITE_WAHA_API_KEY || import.meta.env.VITE_WAHA_API_KEY === 'your_waha_api_key' ? (
+                    <Badge variant="destructive">Not configured</Badge>
+                  ) : (
+                    <Badge variant="default">••••••••</Badge>
+                  )}
+                </span>
+              </div>
             </div>
           </div>
+          {!isWAHAConfigured() && (
+            <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm">
+              <p className="text-yellow-800 font-medium">⚠️ Configuration Required</p>
+              <p className="text-yellow-700 mt-1">
+                Please set a valid WAHA API key in your .env file:
+                <br />
+                <code className="bg-yellow-100 px-1 rounded">VITE_WAHA_API_KEY="your_actual_api_key"</code>
+              </p>
+            </div>
+          )}
         </div>
+
+        {/* Test Results */}
+        {lastTestResult && (
+          <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+            <h4 className="font-medium">Last Test Result</h4>
+            <div className="text-sm">
+              <div className="flex items-center space-x-2 mb-2">
+                {lastTestResult.success ? (
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                ) : (
+                  <XCircle className="h-4 w-4 text-red-600" />
+                )}
+                <span className={lastTestResult.success ? "text-green-600" : "text-red-600"}>
+                  {lastTestResult.message}
+                </span>
+              </div>
+              {lastTestResult.details && (
+                <div className="bg-muted p-2 rounded font-mono text-xs overflow-auto max-h-32">
+                  <pre>{JSON.stringify(lastTestResult.details, null, 2)}</pre>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Features */}
         <div className="space-y-3">

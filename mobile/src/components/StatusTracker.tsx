@@ -19,10 +19,11 @@ interface StatusTrackerProps {
 
 interface RequestData {
   id: string;
+  request_number: string;
   full_name: string;
   nik: string;
-  phone: string;
-  request_type: string;
+  phone_number: string;
+  service_type: string;
   status: string;
   created_at: string;
   updated_at: string;
@@ -114,14 +115,6 @@ export const StatusTracker: React.FC<StatusTrackerProps> = ({ onBack }) => {
     return statusConfig[status] || statusConfig.pending;
   };
 
-  const generateRequestNumber = (request: RequestData) => {
-    // Try to use the actual request_number if available in the mobile schema
-    // Otherwise generate one based on creation date and ID
-    const created = new Date(request.created_at);
-    const dateStr = created.toISOString().slice(0, 10).replace(/-/g, '');
-    return `REQ-${dateStr}-${request.id.slice(-4).toUpperCase()}`;
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -179,10 +172,10 @@ export const StatusTracker: React.FC<StatusTrackerProps> = ({ onBack }) => {
             <View style={styles.resultHeader}>
               <View style={styles.requestInfo}>
                 <Text style={styles.requestNumber}>
-                  {generateRequestNumber(requestData)}
+                  {requestData.request_number}
                 </Text>
                 <Text style={styles.serviceType}>
-                  {serviceTypeNames[requestData.request_type] || 'Layanan Desa'}
+                  {serviceTypeNames[requestData.service_type] || 'Layanan Desa'}
                 </Text>
               </View>
               
@@ -213,7 +206,7 @@ export const StatusTracker: React.FC<StatusTrackerProps> = ({ onBack }) => {
 
               <View style={styles.detailItem}>
                 <Text style={styles.detailLabel}>Nomor HP</Text>
-                <Text style={styles.detailValue}>{requestData.phone}</Text>
+                <Text style={styles.detailValue}>{requestData.phone_number}</Text>
               </View>
 
               <View style={styles.detailItem}>
@@ -234,7 +227,7 @@ export const StatusTracker: React.FC<StatusTrackerProps> = ({ onBack }) => {
                 </Text>
                 <View style={styles.requirementsList}>
                   <Text style={styles.requirementItem}>• KTP asli</Text>
-                  <Text style={styles.requirementItem}>• Nomor permohonan: {generateRequestNumber(requestData)}</Text>
+                  <Text style={styles.requirementItem}>• Nomor permohonan: {requestData.request_number}</Text>
                 </View>
               </View>
             )}

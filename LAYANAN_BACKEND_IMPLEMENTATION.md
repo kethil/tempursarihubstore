@@ -177,6 +177,55 @@ Permohonan [Service Type] Anda telah berhasil diterima!
 ## 🔧 Troubleshooting
 
 ### Common Issues:
+
+#### 1. **401 Unauthorized Error** ✅ **SOLVED**
+**Problem**: WAHA API authentication method was incorrect
+**Root Cause**: WAHA uses `X-API-Key` header, not `Bearer` token authentication
+**Solution Applied**: 
+- Updated WAHA service to use `X-API-Key: admin` header
+- Verified server configuration: API key is `admin`
+- Confirmed WhatsApp session is "WORKING" status
+
+**Current Status**: ✅ **FIXED** - Connection now works correctly
+
+#### 2. **WAHA Connection Failed** ❌
+**Problem**: Cannot reach WAHA server
+**Solutions**:
+- Verify server URL and API key
+- Check network connectivity to `34.83.178.21:3000`
+- Validate session configuration
+- Ensure WAHA server is running
+
+#### 3. **WhatsApp Not Delivered** ❌
+**Problem**: Messages not reaching WhatsApp
+**Solutions**:
+- Confirm phone number format (08xxxxxxxxx)
+- Check WAHA server status and session
+- Verify WhatsApp session is "WORKING" status
+- Test with different phone number
+
+#### 4. **Admin Access Denied** ❌
+**Problem**: Cannot access service management
+**Solutions**:
+- Ensure user has 'admin' role in database
+- Check authentication status
+- Verify AdminRoute protection is working
+- Login with proper admin credentials
+
+### Debug Steps:
+1. **Check Console**: Browser developer tools for detailed errors
+2. **Test API**: Use WAHA test panel in admin dashboard
+3. **Verify Config**: Check environment variables display
+4. **Review Logs**: Server logs for WAHA integration issues
+
+### Support Resources:
+- **Setup Guide**: `WAHA_SETUP_GUIDE.md` for detailed configuration
+- **WAHA Dashboard**: `http://34.83.178.21:3000` for server management
+- **Admin Panel**: `/admin` → "Layanan" tab for testing
+
+## 🔧 Troubleshooting
+
+### Common Issues:
 1. **WAHA Connection Failed**
    - Verify server URL and API key
    - Check network connectivity

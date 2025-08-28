@@ -96,14 +96,14 @@ export const useServiceNotifications = () => {
   // Function to test WAHA connection
   const testWAHAConnection = async () => {
     try {
-      const isConnected = await wahaService.testConnection();
-      return { 
-        success: isConnected, 
-        message: isConnected ? 'WAHA connection successful' : 'WAHA connection failed' 
-      };
+      const result = await wahaService.testConnection();
+      return result;
     } catch (error) {
       console.error('WAHA connection test failed:', error);
-      return { success: false, message: `WAHA connection test failed: ${error}` };
+      return { 
+        success: false, 
+        message: `WAHA connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      };
     }
   };
 

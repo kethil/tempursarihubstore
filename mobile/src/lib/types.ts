@@ -267,8 +267,11 @@ export type Database = {
           full_name: string
           id: string
           nik: string
-          phone: string
-          request_type: Database["public"]["Enums"]["service_type"]
+          operator_id: string | null
+          operator_notes: string | null
+          phone_number: string
+          request_number: string
+          service_type: Database["public"]["Enums"]["service_type"]
           status: Database["public"]["Enums"]["request_status"] | null
           updated_at: string | null
           user_id: string | null
@@ -280,8 +283,11 @@ export type Database = {
           full_name: string
           id?: string
           nik: string
-          phone: string
-          request_type: Database["public"]["Enums"]["service_type"]
+          operator_id?: string | null
+          operator_notes?: string | null
+          phone_number: string
+          request_number?: string
+          service_type: Database["public"]["Enums"]["service_type"]
           status?: Database["public"]["Enums"]["request_status"] | null
           updated_at?: string | null
           user_id?: string | null
@@ -293,8 +299,11 @@ export type Database = {
           full_name?: string
           id?: string
           nik?: string
-          phone?: string
-          request_type?: Database["public"]["Enums"]["service_type"]
+          operator_id?: string | null
+          operator_notes?: string | null
+          phone_number?: string
+          request_number?: string
+          service_type?: Database["public"]["Enums"]["service_type"]
           status?: Database["public"]["Enums"]["request_status"] | null
           updated_at?: string | null
           user_id?: string | null
@@ -313,8 +322,8 @@ export type Database = {
       payment_method: "transfer_bank" | "e_wallet" | "cod"
       payment_status: "pending" | "paid" | "failed" | "refunded"
       product_status: "active" | "inactive" | "draft"
-      request_status: "pending" | "in_progress" | "completed" | "rejected"
-      service_type: "surat_keterangan" | "surat_pengantar" | "surat_domisili" | "legalisir_dokumen"
+      request_status: "pending" | "on_process" | "completed" | "cancelled"
+      service_type: "surat_pengantar_ktp" | "surat_keterangan_domisili" | "surat_keterangan_usaha" | "surat_keterangan_tidak_mampu" | "surat_keterangan_belum_menikah" | "surat_pengantar_nikah" | "surat_keterangan_kematian" | "surat_keterangan_kelahiran"
       user_role: "user" | "admin" | "operator"
     }
     CompositeTypes: {
