@@ -40,7 +40,22 @@ export const ServiceRequestForm = ({ serviceType, onBack, onSuccess }: ServiceRe
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setDocuments(Array.from(e.target.files));
+      const files = Array.from(e.target.files);
+      
+      // Check file size limit (2MB)
+      const maxSize = 2 * 1024 * 1024; // 2MB in bytes
+      const oversizedFiles = files.filter(file => file.size > maxSize);
+      
+      if (oversizedFiles.length > 0) {
+        toast({
+          title: "File Too Large",
+          description: `Some files exceed 2MB limit: ${oversizedFiles.map(f => f.name).join(', ')}`,
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      setDocuments(files);
     }
   };
 
@@ -92,10 +107,11 @@ export const ServiceRequestForm = ({ serviceType, onBack, onSuccess }: ServiceRe
 
       if (requestError) throw requestError;
 
-      // Upload documents if any (only for logged-in users)
-      let documentPaths: string[] = [];
-      if (documents.length > 0 && user?.id) {
-        documentPaths = await uploadDocuments(user.id, request.id);
+      // Upload documents if any (allow anonymous uploads)
+      if (documents.length > 0) {
+        // Use anonymous prefix for users without account
+        const uploaderUserId = user?.id || 'anonymous';
+        const documentPaths = await uploadDocuments(uploaderUserId, request.id);
         
         // Update request with document paths
         const { error: updateError } = await supabase
@@ -243,7 +259,7 @@ export const ServiceRequestForm = ({ serviceType, onBack, onSuccess }: ServiceRe
                 className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Format: JPG, PNG, PDF. Maksimal 5MB per file.
+                Format: JPG, PNG, PDF. Maksimal 2MB per file.
               </p>
             </div>
 

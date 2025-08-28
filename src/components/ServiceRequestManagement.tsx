@@ -26,6 +26,9 @@ import {
   RefreshCw,
   Filter,
   Download,
+  Image,
+  ExternalLink,
+  File,
 } from "lucide-react";
 
 type ServiceRequest = Database["public"]["Tables"]["service_requests"]["Row"];
@@ -43,6 +46,8 @@ const ServiceRequestManagement = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<RequestStatus>("pending");
   const [operatorNotes, setOperatorNotes] = useState("");
+  const [requestDocuments, setRequestDocuments] = useState<any[]>([]);
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -160,6 +165,84 @@ const ServiceRequestManagement = () => {
     });
   };
 
+  // Function to load documents from Supabase storage
+  const loadDocuments = async (request: ServiceRequestWithDetails) => {
+    setIsLoadingDocuments(true);
+    try {
+      // Type cast documents to expected structure
+      const documentsData = request.documents as { files?: string[] } | null;
+      
+      if (!documentsData || !documentsData.files || !Array.isArray(documentsData.files) || documentsData.files.length === 0) {
+        setRequestDocuments([]);
+        return;
+      }
+
+      const documentPaths = documentsData.files;
+      const documentList = [];
+
+      for (const filePath of documentPaths) {
+        try {
+          // Get the public URL for the file
+          const { data } = supabase.storage
+            .from('service-documents')
+            .getPublicUrl(filePath);
+            
+          if (data?.publicUrl) {
+            // Extract filename from path
+            const fileName = filePath.split('/').pop() || 'Unknown Document';
+            const fileExtension = fileName.split('.').pop()?.toLowerCase();
+            
+            // Determine file type
+            let fileType = 'application/octet-stream';
+            if (fileExtension) {
+              if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExtension)) {
+                fileType = `image/${fileExtension === 'jpg' ? 'jpeg' : fileExtension}`;
+              } else if (fileExtension === 'pdf') {
+                fileType = 'application/pdf';
+              }
+            }
+            
+            documentList.push({
+              id: filePath,
+              name: fileName,
+              type: fileType,
+              size: 0, // Size not available from storage URL
+              url: data.publicUrl,
+              uploadType: 'file'
+            });
+          } else {
+            console.log('No public URL available for:', filePath);
+          }
+        } catch (fileError) {
+          console.error('Error processing file:', filePath, fileError);
+        }
+      }
+
+      setRequestDocuments(documentList);
+    } catch (error) {
+      console.error('❌ Error loading documents:', error);
+      setRequestDocuments([]);
+    } finally {
+      setIsLoadingDocuments(false);
+    }
+  };
+
+  // Function to format file size
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return 'Unknown size';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Function to open document in new window
+  const openDocument = (document: any) => {
+    if (document.url) {
+      window.open(document.url, '_blank');
+    }
+  };
+
   const handleStatusUpdate = () => {
     if (!selectedRequest) return;
 
@@ -230,10 +313,25 @@ const ServiceRequestManagement = () => {
           <h2 className="text-2xl font-bold">Layanan Desa</h2>
           <p className="text-muted-foreground">Kelola permohonan layanan administrasi desa</p>
         </div>
-        <Button onClick={exportToCSV} disabled={!requests || requests.length === 0}>
-          <Download className="h-4 w-4 mr-2" />
-          Export CSV
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline"
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ["service-requests"] });
+              toast({
+                title: "Refreshing",
+                description: "Loading latest service requests...",
+              });
+            }}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+          <Button onClick={exportToCSV} disabled={!requests || requests.length === 0}>
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -331,6 +429,7 @@ const ServiceRequestManagement = () => {
                 <th className="text-left p-4">Nama</th>
                 <th className="text-left p-4">Layanan</th>
                 <th className="text-left p-4">Status</th>
+                <th className="text-left p-4">Dokumen</th>
                 <th className="text-left p-4">Tanggal</th>
                 <th className="text-left p-4">Aksi</th>
               </tr>
@@ -338,7 +437,7 @@ const ServiceRequestManagement = () => {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="text-center p-8">
+                  <td colSpan={7} className="text-center p-8">
                     <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
                     Loading...
                   </td>
@@ -366,6 +465,22 @@ const ServiceRequestManagement = () => {
                       </Badge>
                     </td>
                     <td className="p-4">
+                      {(() => {
+                        const docs = request.documents as { files?: string[] } | null;
+                        return docs && docs.files && Array.isArray(docs.files) && docs.files.length > 0 ? (
+                          <div className="flex items-center text-xs text-green-600">
+                            <Image className="h-3 w-3 mr-1" />
+                            {docs.files.length} file{docs.files.length > 1 ? 's' : ''}
+                          </div>
+                      ) : (
+                        <div className="flex items-center text-xs text-muted-foreground">
+                          <FileText className="h-3 w-3 mr-1" />
+                          Tidak ada
+                        </div>
+                      );
+                    })()}
+                    </td>
+                    <td className="p-4">
                       <div className="flex items-center text-sm">
                         <Calendar className="h-3 w-3 mr-1" />
                         {formatDate(request.created_at || "")}
@@ -375,16 +490,23 @@ const ServiceRequestManagement = () => {
                       <div className="flex space-x-2">
                         <Dialog>
                           <DialogTrigger asChild>
-                            <Button variant="outline" size="sm">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                setSelectedRequest(request);
+                                loadDocuments(request);
+                              }}
+                            >
                               <Eye className="h-3 w-3 mr-1" />
                               Detail
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
+                          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
                               <DialogTitle>Detail Permohonan</DialogTitle>
                             </DialogHeader>
-                            <div className="space-y-4">
+                            <div className="space-y-6" role="main" aria-label="Service request details">
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
                                   <Label>Nomor Permohonan</Label>
@@ -421,12 +543,76 @@ const ServiceRequestManagement = () => {
                                   <p className="font-medium">{formatDate(request.updated_at || "")}</p>
                                 </div>
                               </div>
+                              
                               {request.operator_notes && (
                                 <div>
                                   <Label>Catatan Petugas</Label>
                                   <p className="bg-muted p-3 rounded text-sm">{request.operator_notes}</p>
                                 </div>
                               )}
+                              
+                              {/* Documents Section */}
+                              <div>
+                                <Label className="text-base font-semibold">Dokumen yang Diunggah</Label>
+                                {isLoadingDocuments ? (
+                                  <div className="flex items-center justify-center p-4">
+                                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                                    <span className="text-sm text-muted-foreground">Memuat dokumen...</span>
+                                  </div>
+                                ) : requestDocuments.length > 0 ? (
+                                  <div className="mt-3 space-y-3">
+                                    <p className="text-sm text-muted-foreground">
+                                      Ditemukan {requestDocuments.length} dokumen:
+                                    </p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                      {requestDocuments.map((doc, index) => (
+                                        <div key={doc.id || index} className="border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                                          <div className="flex items-start space-x-3">
+                                            <div className="flex-shrink-0">
+                                              {doc.type.startsWith('image/') ? (
+                                                <Image className="h-8 w-8 text-blue-500" />
+                                              ) : (
+                                                <File className="h-8 w-8 text-gray-500" />
+                                              )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                              <p className="font-medium text-sm truncate">{doc.name}</p>
+                                              <div className="text-xs text-muted-foreground space-y-1">
+                                                <p>Ukuran: {formatFileSize(doc.size)}</p>
+                                                <p>Tipe: {doc.type}</p>
+                                              </div>
+                                            </div>
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() => openDocument(doc)}
+                                              className="flex-shrink-0"
+                                            >
+                                              <ExternalLink className="h-3 w-3 mr-1" />
+                                              Buka
+                                            </Button>
+                                          </div>
+                                          {doc.type.startsWith('image/') && doc.url && (
+                                            <div className="mt-2">
+                                              <img 
+                                                src={doc.url} 
+                                                alt={doc.name}
+                                                className="w-full h-20 object-cover rounded border cursor-pointer hover:opacity-90 transition-opacity"
+                                                onClick={() => openDocument(doc)}
+                                              />
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="mt-3 p-4 border border-dashed rounded-lg text-center">
+                                    <FileText className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                                    <p className="text-sm text-muted-foreground">Tidak ada dokumen yang diunggah</p>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </DialogContent>
                         </Dialog>
@@ -445,7 +631,7 @@ const ServiceRequestManagement = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="text-center p-8">
+                  <td colSpan={7} className="text-center p-8">
                     <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                     <p className="text-muted-foreground">Tidak ada permohonan layanan</p>
                   </td>
