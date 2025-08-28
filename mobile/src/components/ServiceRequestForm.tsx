@@ -190,11 +190,7 @@ export const ServiceRequestForm: React.FC<ServiceRequestFormProps> = ({
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
-    if (!user) {
-      Alert.alert('Error', 'Anda harus login terlebih dahulu');
-      return;
-    }
-
+    // Allow anonymous submissions - no login required
     setIsSubmitting(true);
 
     try {
@@ -203,7 +199,7 @@ export const ServiceRequestForm: React.FC<ServiceRequestFormProps> = ({
         nik: formData.nik,
         phone_number: formData.phoneNumber,
         service_type: serviceType as any,
-        user_id: user.id,
+        user_id: user?.id || null, // Allow null for anonymous users
       };
 
       const response = await serviceRequestsApi.createServiceRequest(requestData);

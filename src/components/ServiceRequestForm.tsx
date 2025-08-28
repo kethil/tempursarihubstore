@@ -65,16 +65,9 @@ export const ServiceRequestForm = ({ serviceType, onBack, onSuccess }: ServiceRe
     setIsSubmitting(true);
 
     try {
+      // Allow anonymous submissions - no login required
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast({
-          title: "Error",
-          description: "Anda harus login terlebih dahulu",
-          variant: "destructive"
-        });
-        return;
-      }
-
+      
       // Generate request number client-side as fallback
       const generateRequestNumber = () => {
         const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -82,11 +75,11 @@ export const ServiceRequestForm = ({ serviceType, onBack, onSuccess }: ServiceRe
         return `REQ-${today}-${timestamp}`;
       };
 
-      // Create the service request
+      // Create the service request (user_id will be null for anonymous requests)
       const { data: request, error: requestError } = await supabase
         .from('service_requests')
         .insert({
-          user_id: user.id,
+          user_id: user?.id || null, // Allow null for anonymous users
           service_type: serviceType as Database['public']['Enums']['service_type'],
           full_name: formData.fullName,
           nik: formData.nik,
@@ -99,9 +92,9 @@ export const ServiceRequestForm = ({ serviceType, onBack, onSuccess }: ServiceRe
 
       if (requestError) throw requestError;
 
-      // Upload documents if any
+      // Upload documents if any (only for logged-in users)
       let documentPaths: string[] = [];
-      if (documents.length > 0) {
+      if (documents.length > 0 && user?.id) {
         documentPaths = await uploadDocuments(user.id, request.id);
         
         // Update request with document paths
