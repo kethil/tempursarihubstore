@@ -14,7 +14,7 @@ import { NavigationProvider, useNavigation } from './contexts/NavigationContext'
 
 const MainApp: React.FC = () => {
   const [showLogin, setShowLogin] = useState(false);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const { activeTab, setActiveTab } = useNavigation();
 
   const handleTabPress = (tabId: string) => {
@@ -30,6 +30,15 @@ const MainApp: React.FC = () => {
   const handleLoginSuccess = () => {
     setShowLogin(false);
   };
+
+  // Don't block the app while loading authentication - allow anonymous access
+  // if (loading) {
+  //   return (
+  //     <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+  //       <ActivityIndicator size="large" color="#0891b2" />
+  //     </View>
+  //   );
+  // }
 
   // Show login screen if requested
   if (showLogin) {

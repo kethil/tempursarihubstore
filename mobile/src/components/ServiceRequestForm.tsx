@@ -9,16 +9,34 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
+  Image,
+  Dimensions,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as Camera from 'expo-camera';
 import { serviceRequestsApi } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
+import { testStorageConnectivity } from '../lib/supabase';
+import { StorageTestButton } from './StorageTestButton';
+import type { Database } from '../lib/types';
 
 interface ServiceRequestFormProps {
   serviceType: string;
   onBack: () => void;
   onSuccess: (requestNumber: string) => void;
 }
+
+interface DocumentFile {
+  id: string;
+  name: string;
+  uri: string;
+  type: string;
+  size: number;
+}
+
+const { width } = Dimensions.get('window');
 
 const serviceTypes: { [key: string]: string } = {
   'surat_pengantar_ktp': 'Surat Pengantar KTP',
@@ -91,10 +109,293 @@ export const ServiceRequestForm: React.FC<ServiceRequestFormProps> = ({
     phoneNumber: '',
     purpose: '',
   });
+  const [documents, setDocuments] = useState<DocumentFile[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingDocuments, setIsUploadingDocuments] = useState(false);
 
   const currentRequirements = requirements[serviceType] || ['Foto KTP', 'Dokumen pendukung lainnya'];
   const serviceName = serviceTypes[serviceType] || 'Layanan Desa';
+
+  // Document upload functions
+  const requestCameraPermission = async () => {
+    const { status } = await Camera.Camera.requestCameraPermissionsAsync();
+    return status === 'granted';
+  };
+
+  const requestGalleryPermission = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    return status === 'granted';
+  };
+
+  const validateFileSize = (fileSize: number): boolean => {
+    const maxSize = 2 * 1024 * 1024; // 2MB in bytes
+    return fileSize <= maxSize;
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const generateDocumentId = (): string => {
+    return Math.random().toString(36).substr(2, 9) + Date.now().toString();
+  };
+
+  const takePhoto = async () => {
+    try {
+      const hasPermission = await requestCameraPermission();
+      if (!hasPermission) {
+        Alert.alert('Permission Required', 'Camera permission is required to take photos.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+        base64: false,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        
+        if (!validateFileSize(asset.fileSize || 0)) {
+          Alert.alert(
+            'File Too Large',
+            `File size ${formatFileSize(asset.fileSize || 0)} exceeds 2MB limit.`
+          );
+          return;
+        }
+
+        const document: DocumentFile = {
+          id: generateDocumentId(),
+          name: `photo_${Date.now()}.jpg`,
+          uri: asset.uri,
+          type: 'image/jpeg',
+          size: asset.fileSize || 0,
+        };
+
+        setDocuments(prev => [...prev, document]);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo. Please try again.');
+    }
+  };
+
+  const pickDocument = async () => {
+    try {
+      const hasPermission = await requestGalleryPermission();
+      if (!hasPermission) {
+        Alert.alert('Permission Required', 'Gallery permission is required to select photos.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+        allowsMultipleSelection: true,
+        selectionLimit: 5,
+        base64: false,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const newDocuments: DocumentFile[] = [];
+        const oversizedFiles: string[] = [];
+
+        for (const asset of result.assets) {
+          if (!validateFileSize(asset.fileSize || 0)) {
+            oversizedFiles.push(`${asset.fileName || 'Unknown'} (${formatFileSize(asset.fileSize || 0)})`);
+            continue;
+          }
+
+          const document: DocumentFile = {
+            id: generateDocumentId(),
+            name: asset.fileName || `document_${Date.now()}.jpg`,
+            uri: asset.uri,
+            type: asset.type === 'image' ? 'image/jpeg' : (asset.type || 'image/jpeg'), // Fix MIME type
+            size: asset.fileSize || 0,
+          };
+
+          newDocuments.push(document);
+        }
+
+        if (oversizedFiles.length > 0) {
+          Alert.alert(
+            'Some Files Too Large',
+            `The following files exceed 2MB limit and were not added:\n${oversizedFiles.join('\n')}`
+          );
+        }
+
+        if (newDocuments.length > 0) {
+          setDocuments(prev => [...prev, ...newDocuments]);
+        }
+      }
+    } catch (error) {
+      console.error('Error picking documents:', error);
+      Alert.alert('Error', 'Failed to select documents. Please try again.');
+    }
+  };
+
+  const removeDocument = (documentId: string) => {
+    setDocuments(prev => prev.filter(doc => doc.id !== documentId));
+  };
+
+  const showDocumentOptions = () => {
+    Alert.alert(
+      'Add Document',
+      'Choose how you want to add a document',
+      [
+        {
+          text: 'Take Photo',
+          onPress: takePhoto,
+          style: 'default',
+        },
+        {
+          text: 'Choose from Gallery',
+          onPress: pickDocument,
+          style: 'default',
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  // Upload documents to Supabase storage
+  const uploadDocuments = async (userId: string, requestId: string): Promise<string[]> => {
+    if (documents.length === 0) return [];
+
+    // Test storage connectivity first
+    const isStorageConnected = await testStorageConnectivity();
+    if (!isStorageConnected) {
+      console.error('❌ Storage connectivity test failed');
+      throw new Error('Unable to connect to storage service. Please check your internet connection.');
+    }
+
+    setIsUploadingDocuments(true);
+    const uploadedPaths: string[] = [];
+
+    // Upload documents one by one instead of all at once to avoid network overload
+    for (let index = 0; index < documents.length; index++) {
+      const document = documents[index];
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries) {
+        try {
+          console.log(`📤 Starting upload for document ${index + 1}/${documents.length}: ${document.name} (attempt ${retryCount + 1}/${maxRetries})`);
+          
+          // Create file path for upload
+          const fileExtension = document.name.split('.').pop() || 'jpg';
+          const fileName = `${userId}/${requestId}/document_${index + 1}_${Date.now()}.${fileExtension}`;
+          
+          // For React Native, use the file URI directly with proper options
+          console.log(`📁 Uploading to path: ${fileName}`);
+          
+          // Create upload options for React Native with enhanced content type detection
+          let contentType = document.type;
+          
+          // Fix common MIME type issues
+          if (contentType === 'image') {
+            contentType = 'image/jpeg'; // Default to JPEG for generic 'image' type
+          } else if (!contentType || contentType === 'undefined') {
+            // Determine content type from file extension
+            const fileExtension = document.name.split('.').pop()?.toLowerCase();
+            switch (fileExtension) {
+              case 'jpg':
+              case 'jpeg':
+                contentType = 'image/jpeg';
+                break;
+              case 'png':
+                contentType = 'image/png';
+                break;
+              case 'pdf':
+                contentType = 'application/pdf';
+                break;
+              default:
+                contentType = 'image/jpeg'; // Safe default
+            }
+          }
+          
+          console.log(`🏷️ Using content type: ${contentType}`);
+          
+          const uploadOptions = {
+            contentType: contentType,
+            upsert: false
+          };
+          
+          let uploadResult;
+          
+          // Try direct file upload using the URI (React Native method)
+          try {
+            // For React Native, we can upload the file directly using its URI
+            const response = await fetch(document.uri);
+            if (!response.ok) {
+              throw new Error(`Failed to read file: ${response.status}`);
+            }
+            
+            // Get the file data as ArrayBuffer (this works better than Blob in RN)
+            const fileData = await response.arrayBuffer();
+            
+            console.log(`📄 File data size: ${fileData.byteLength} bytes`);
+            
+            // Upload using ArrayBuffer (more compatible with React Native)
+            uploadResult = await supabase.storage
+              .from('service-documents')
+              .upload(fileName, fileData, uploadOptions);
+              
+          } catch (arrayBufferError) {
+            console.warn(`⚠️ ArrayBuffer upload failed, trying alternative method:`, arrayBufferError);
+            
+            // Fallback: Try with Blob
+            const response = await fetch(document.uri);
+            const blob = await response.blob();
+            
+            uploadResult = await supabase.storage
+              .from('service-documents')
+              .upload(fileName, blob, uploadOptions);
+          }
+
+          if (uploadResult.error) {
+            console.error(`❌ Storage upload error for ${document.name}:`, uploadResult.error);
+            throw new Error(`Storage upload failed: ${uploadResult.error.message}`);
+          }
+          
+          console.log(`✅ Successfully uploaded: ${document.name} to ${uploadResult.data.path}`);
+          uploadedPaths.push(uploadResult.data.path);
+          break; // Success, break out of retry loop
+          
+        } catch (error) {
+          retryCount++;
+          console.error(`❌ Attempt ${retryCount} failed for ${document.name}:`, error);
+          
+          if (retryCount >= maxRetries) {
+            console.error(`❌ All ${maxRetries} attempts failed for ${document.name}`);
+            setIsUploadingDocuments(false);
+            throw new Error(`Failed to upload ${document.name} after ${maxRetries} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+          
+          // Wait before retrying (exponential backoff)
+          const delay = Math.pow(2, retryCount) * 1000; // 2s, 4s, 8s
+          console.log(`⏳ Waiting ${delay}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    setIsUploadingDocuments(false);
+    console.log(`🎉 All documents uploaded successfully: ${uploadedPaths.length} files`);
+    return uploadedPaths;
+  };
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -190,30 +491,97 @@ export const ServiceRequestForm: React.FC<ServiceRequestFormProps> = ({
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
-    // Allow anonymous submissions - no login required
     setIsSubmitting(true);
 
     try {
+      // Create service request first
       const requestData = {
         full_name: formData.fullName,
         nik: formData.nik,
         phone_number: formData.phoneNumber,
-        service_type: serviceType as any,
-        user_id: user?.id || null, // Allow null for anonymous users
+        service_type: serviceType as Database['public']['Enums']['service_type'],
+        user_id: user?.id || null,
+        status: 'pending' as Database['public']['Enums']['request_status']
       };
 
-      const response = await serviceRequestsApi.createServiceRequest(requestData);
-      
-      // Use the actual request_number from the response
-      const requestNumber = response.request_number || `REQ-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${response.id?.slice(-4).toUpperCase() || 'TEMP'}`;
+      // Generate request number client-side as fallback
+      const generateRequestNumber = () => {
+        const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const timestamp = Date.now().toString().slice(-4);
+        return `REQ-${today}-${timestamp}`;
+      };
+
+      // Create the service request using Supabase directly
+      const { data: request, error: requestError } = await supabase
+        .from('service_requests')
+        .insert({
+          ...requestData,
+          request_number: generateRequestNumber(),
+        })
+        .select('id, request_number')
+        .single();
+
+      if (requestError) throw requestError;
+
+      // Upload documents if any
+      if (documents.length > 0) {
+        try {
+          console.log(`📤 Starting upload of ${documents.length} documents...`);
+          const uploaderUserId = user?.id || 'anonymous';
+          const documentPaths = await uploadDocuments(uploaderUserId, request.id);
+          
+          // Update request with document paths
+          const { error: updateError } = await supabase
+            .from('service_requests')
+            .update({ documents: { files: documentPaths } })
+            .eq('id', request.id);
+
+          if (updateError) {
+            console.error('❌ Database update error:', updateError);
+            throw updateError;
+          }
+          
+          console.log('✅ Documents successfully linked to request');
+        } catch (uploadError) {
+          console.error('❌ Document upload failed:', uploadError);
+          
+          // Provide detailed error feedback to user
+          const errorMessage = uploadError.message || 'Unknown upload error';
+          
+          Alert.alert(
+            'Document Upload Failed',
+            `Your request was created successfully (${request.request_number}), but document upload failed.\n\nError: ${errorMessage}\n\nYou can try uploading documents again later or contact support.`,
+            [
+              {
+                text: 'Continue Without Documents',
+                onPress: () => {
+                  Alert.alert(
+                    'Request Created Successfully',
+                    `Your request ${request.request_number} has been submitted without documents. You will be contacted for further steps.`,
+                    [{ text: 'OK', onPress: () => onSuccess(request.request_number) }]
+                  );
+                }
+              },
+              {
+                text: 'Try Again',
+                onPress: () => {
+                  // Don't proceed, let user try uploading again
+                  setIsSubmitting(false);
+                }
+              }
+            ]
+          );
+          return; // Don't proceed to success
+        }
+      }
       
       Alert.alert(
         'Permohonan Berhasil',
-        `Nomor permohonan: ${requestNumber}\n\nPermohonan Anda telah berhasil diajukan. Silakan tunggu notifikasi selanjutnya.`,
+        `Nomor permohonan: ${request.request_number}\n\nPermohonan Anda telah berhasil diajukan${documents.length > 0 ? ' dengan ' + documents.length + ' dokumen' : ''}. Silakan tunggu notifikasi selanjutnya.`,
         [
           {
             text: 'OK',
-            onPress: () => onSuccess(requestNumber),
+            onPress: () => onSuccess(request.request_number),
           },
         ]
       );
@@ -263,7 +631,7 @@ export const ServiceRequestForm: React.FC<ServiceRequestFormProps> = ({
           <View style={styles.requirementsNote}>
             <Feather name="info" size={16} color="#f59e0b" />
             <Text style={styles.requirementsNoteText}>
-              Siapkan foto/scan dokumen di atas. Upload dapat dilakukan setelah permohonan disetujui.
+              Anda dapat mengupload dokumen sekarang atau nanti setelah permohonan disetujui.
             </Text>
           </View>
         </View>
@@ -327,6 +695,74 @@ export const ServiceRequestForm: React.FC<ServiceRequestFormProps> = ({
           </View>
         </View>
 
+        {/* Document Upload Section */}
+        <View style={styles.documentCard}>
+          <Text style={styles.documentTitle}>Upload Dokumen (Opsional)</Text>
+          <Text style={styles.documentSubtitle}>
+            Maksimal 2MB per file. Format: JPG, PNG
+          </Text>
+          
+          {/* Storage Test Button for debugging */}
+          <StorageTestButton />
+          
+          {/* Add Document Button */}
+          <TouchableOpacity 
+            style={styles.addDocumentButton} 
+            onPress={showDocumentOptions}
+            activeOpacity={0.7}
+          >
+            <View style={styles.addDocumentContent}>
+              <View style={styles.addDocumentIcon}>
+                <Feather name="plus" size={20} color="#0891b2" />
+              </View>
+              <View style={styles.addDocumentText}>
+                <Text style={styles.addDocumentTitle}>Tambah Dokumen</Text>
+                <Text style={styles.addDocumentDesc}>Foto atau pilih dari galeri</Text>
+              </View>
+            </View>
+            <Feather name="chevron-right" size={20} color="#9ca3af" />
+          </TouchableOpacity>
+
+          {/* Document List */}
+          {documents.length > 0 && (
+            <View style={styles.documentList}>
+              <Text style={styles.documentListTitle}>
+                Dokumen Terpilih ({documents.length})
+              </Text>
+              {documents.map((document, index) => (
+                <View key={document.id} style={styles.documentItem}>
+                  <View style={styles.documentItemContent}>
+                    <Image source={{ uri: document.uri }} style={styles.documentThumbnail} />
+                    <View style={styles.documentItemInfo}>
+                      <Text style={styles.documentItemName} numberOfLines={1}>
+                        {document.name}
+                      </Text>
+                      <Text style={styles.documentItemSize}>
+                        {formatFileSize(document.size)}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity 
+                    onPress={() => removeDocument(document.id)}
+                    style={styles.removeDocumentButton}
+                    activeOpacity={0.7}
+                  >
+                    <Feather name="x" size={16} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Upload Progress */}
+          {isUploadingDocuments && (
+            <View style={styles.uploadProgress}>
+              <ActivityIndicator size="small" color="#0891b2" />
+              <Text style={styles.uploadProgressText}>Mengupload dokumen...</Text>
+            </View>
+          )}
+        </View>
+
         {/* Process Info */}
         <View style={styles.processCard}>
           <Text style={styles.processTitle}>Proses Selanjutnya</Text>
@@ -356,15 +792,22 @@ export const ServiceRequestForm: React.FC<ServiceRequestFormProps> = ({
       {/* Submit Button */}
       <View style={styles.submitContainer}>
         <TouchableOpacity
-          style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+          style={[styles.submitButton, (isSubmitting || isUploadingDocuments) && styles.submitButtonDisabled]}
           onPress={handleSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isUploadingDocuments}
         >
-          {isSubmitting ? (
-            <ActivityIndicator color="#ffffff" size="small" />
+          {isSubmitting || isUploadingDocuments ? (
+            <>
+              <ActivityIndicator color="#ffffff" size="small" />
+              <Text style={styles.submitButtonText}>
+                {isUploadingDocuments ? 'Mengupload...' : 'Mengirim...'}
+              </Text>
+            </>
           ) : (
             <>
-              <Text style={styles.submitButtonText}>Kirim Permohonan</Text>
+              <Text style={styles.submitButtonText}>
+                Kirim Permohonan{documents.length > 0 ? ` (${documents.length} dokumen)` : ''}
+              </Text>
               <Feather name="send" size={20} color="#ffffff" />
             </>
           )}
@@ -585,5 +1028,135 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#ffffff',
     marginRight: 8,
+  },
+  // Document Upload Styles
+  documentCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  documentTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  documentSubtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 16,
+  },
+  addDocumentButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#e1e5e9',
+    borderStyle: 'dashed',
+    marginBottom: 16,
+  },
+  addDocumentContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  addDocumentIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#e0f2fe',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  addDocumentText: {
+    flex: 1,
+  },
+  addDocumentTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 2,
+  },
+  addDocumentDesc: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  documentList: {
+    marginTop: 8,
+  },
+  documentListTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 12,
+  },
+  documentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  documentItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  documentThumbnail: {
+    width: 40,
+    height: 40,
+    borderRadius: 6,
+    marginRight: 12,
+    backgroundColor: '#e5e7eb',
+  },
+  documentItemInfo: {
+    flex: 1,
+  },
+  documentItemName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1f2937',
+    marginBottom: 2,
+  },
+  documentItemSize: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  removeDocumentButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#fef2f2',
+  },
+  uploadProgress: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  uploadProgressText: {
+    fontSize: 14,
+    color: '#0891b2',
+    marginLeft: 8,
+    fontWeight: '500',
   },
 });

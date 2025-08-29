@@ -21,7 +21,7 @@
       "./node_modules/@types",
       "../node_modules/@types"
     ],
-    "types": ["react-native", "nativewind/types"]
+    "types": ["react-native"]
   },
   "include": [
     "src/**/*",

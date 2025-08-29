@@ -201,11 +201,11 @@ const LayananScreen: React.FC = () => {
       return (
         <ServiceRequestForm
           serviceType={selectedServiceType}
-          onBack={currentView === 'form' && selectedServiceType ? handleBackToServices : handleBackToMenu}
+          onBack={handleBackToServices}
           onSuccess={handleFormSuccess}
         />
       );
-
+    
     case 'status':
       return (
         <StatusTracker
@@ -309,6 +309,9 @@ const styles = StyleSheet.create({
     color: '#1e40af',
     marginLeft: 12,
     lineHeight: 20,
+  },
+  backButton: {
+    padding: 8,
   },
 });
 
