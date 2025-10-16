@@ -18,7 +18,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, Edit, Trash2, Plus, Eye, EyeOff, Package } from "lucide-react";
+import { Search, Edit, Trash2, Plus, Eye, EyeOff, Package, FolderOpen, Image as ImageIcon } from "lucide-react";
+import { TableSkeleton, StatsSkeleton } from "@/components/ui/loading-skeleton";
 
 interface CategoryFormData {
   name: string;
@@ -283,14 +284,19 @@ export default function CategoryManagement() {
   );
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Manajemen Kategori</CardTitle>
+    <Card className="shadow-lg border-0 overflow-hidden">
+      <CardHeader className="bg-gradient-to-r from-purple-50 to-indigo-50">
+        <CardTitle className="flex items-center gap-2">
+          <div className="p-2 bg-purple-100 rounded-lg">
+            <FolderOpen className="h-5 w-5 text-purple-600" />
+          </div>
+          Manajemen Kategori
+        </CardTitle>
         <CardDescription>
-          Kelola kategori produk di toko Anda
+          Kelola kategori produk di toko Anda dengan mudah
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="p-6 space-y-6">
         {/* Search and Actions */}
         <div className="flex justify-between items-center gap-4">
           <div className="relative flex-1 max-w-sm">
@@ -299,20 +305,23 @@ export default function CategoryManagement() {
               placeholder="Cari kategori..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
+              className="pl-9 border-slate-200 focus:border-purple-500 focus:ring-purple-500"
             />
           </div>
           
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-md">
                 <Plus className="h-4 w-4 mr-2" />
                 Tambah Kategori
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Tambah Kategori Baru</DialogTitle>
+                <DialogTitle className="flex items-center gap-2">
+                  <Plus className="h-5 w-5 text-purple-600" />
+                  Tambah Kategori Baru
+                </DialogTitle>
               </DialogHeader>
               <CategoryForm />
             </DialogContent>
@@ -320,41 +329,47 @@ export default function CategoryManagement() {
         </div>
 
         {/* Statistics */}
-        <div className="grid grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="pt-6">
+        <div className="grid grid-cols-3 gap-6">
+          <Card className="border-0 shadow-md hover:shadow-lg transition-shadow">
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Kategori</p>
-                  <p className="text-2xl font-bold">{categories.length}</p>
+                  <p className="text-sm font-medium text-slate-600">Total Kategori</p>
+                  <p className="text-3xl font-bold text-slate-900">{categories.length}</p>
                 </div>
-                <Package className="h-8 w-8 text-muted-foreground" />
+                <div className="p-3 bg-blue-100 rounded-xl">
+                  <Package className="h-6 w-6 text-blue-600" />
+                </div>
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="pt-6">
+          <Card className="border-0 shadow-md hover:shadow-lg transition-shadow">
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Aktif</p>
-                  <p className="text-2xl font-bold text-green-600">
+                  <p className="text-sm font-medium text-slate-600">Aktif</p>
+                  <p className="text-3xl font-bold text-green-600">
                     {categories.filter(c => c.is_active).length}
                   </p>
                 </div>
-                <Eye className="h-8 w-8 text-green-600" />
+                <div className="p-3 bg-green-100 rounded-xl">
+                  <Eye className="h-6 w-6 text-green-600" />
+                </div>
               </div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="pt-6">
+          <Card className="border-0 shadow-md hover:shadow-lg transition-shadow">
+            <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Non-aktif</p>
-                  <p className="text-2xl font-bold text-gray-600">
+                  <p className="text-sm font-medium text-slate-600">Non-aktif</p>
+                  <p className="text-3xl font-bold text-slate-600">
                     {categories.filter(c => !c.is_active).length}
                   </p>
                 </div>
-                <EyeOff className="h-8 w-8 text-gray-600" />
+                <div className="p-3 bg-slate-100 rounded-xl">
+                  <EyeOff className="h-6 w-6 text-slate-600" />
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -362,11 +377,11 @@ export default function CategoryManagement() {
 
         {/* Categories Table */}
         {isLoading ? (
-          <div className="text-center py-8">Loading...</div>
+          <TableSkeleton rows={5} columns={6} />
         ) : (
-          <div className="border rounded-lg">
+          <div className="border border-slate-200 rounded-lg overflow-hidden">
             <Table>
-              <TableHeader>
+              <TableHeader className="bg-slate-50">
                 <TableRow>
                   <TableHead>Kategori</TableHead>
                   <TableHead>Deskripsi</TableHead>
@@ -378,26 +393,35 @@ export default function CategoryManagement() {
               </TableHeader>
               <TableBody>
                 {filteredCategories.map((category) => (
-                  <TableRow key={category.id}>
+                  <TableRow key={category.id} className="hover:bg-slate-50 transition-colors">
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        {category.image_url && (
-                          <img
-                            src={category.image_url}
-                            alt={category.name}
-                            className="w-8 h-8 rounded object-cover"
-                          />
-                        )}
+                        <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden">
+                          {category.image_url ? (
+                            <img
+                              src={category.image_url}
+                              alt={category.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                e.currentTarget.nextElementSibling.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div className="w-full h-full flex items-center justify-center text-slate-400" style={{ display: category.image_url ? 'none' : 'flex' }}>
+                            <ImageIcon className="h-5 w-5" />
+                          </div>
+                        </div>
                         <div>
-                          <div className="font-medium">{category.name}</div>
-                          <div className="text-sm text-muted-foreground">{category.slug}</div>
+                          <div className="font-medium text-slate-900">{category.name}</div>
+                          <div className="text-sm text-slate-500">{category.slug}</div>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="max-w-xs">
                         {category.description && (
-                          <p className="text-sm text-muted-foreground truncate">
+                          <p className="text-sm text-slate-600 truncate">
                             {category.description}
                           </p>
                         )}
@@ -405,14 +429,19 @@ export default function CategoryManagement() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <span>{productCounts[category.id] || 0}</span>
-                        <Package className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium text-slate-900">{productCounts[category.id] || 0}</span>
+                        <Package className="h-4 w-4 text-slate-400" />
                       </div>
                     </TableCell>
-                    <TableCell>{category.sort_order}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="border-slate-200">
+                        {category.sort_order}
+                      </Badge>
+                    </TableCell>
                     <TableCell>
                       <Badge
                         variant={category.is_active ? "default" : "secondary"}
+                        className={category.is_active ? "bg-green-100 text-green-800" : "bg-slate-100 text-slate-800"}
                       >
                         {category.is_active ? "Aktif" : "Tidak Aktif"}
                       </Badge>
@@ -423,24 +452,26 @@ export default function CategoryManagement() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleToggleStatus(category.id)}
+                          className="hover:bg-slate-100"
                         >
                           {category.is_active ? (
-                            <EyeOff className="h-4 w-4" />
+                            <EyeOff className="h-4 w-4 text-slate-600" />
                           ) : (
-                            <Eye className="h-4 w-4" />
+                            <Eye className="h-4 w-4 text-slate-600" />
                           )}
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleEdit(category)}
+                          className="hover:bg-blue-50"
                         >
-                          <Edit className="h-4 w-4" />
+                          <Edit className="h-4 w-4 text-blue-600" />
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <Trash2 className="h-4 w-4" />
+                            <Button variant="ghost" size="sm" className="hover:bg-red-50">
+                              <Trash2 className="h-4 w-4 text-red-600" />
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>

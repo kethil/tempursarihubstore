@@ -19,7 +19,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { Search, Eye, Edit, Package, Calendar, User, CreditCard, MapPin, Truck, CheckCircle, XCircle, Clock, Filter } from "lucide-react";
+import { Search, Eye, Edit, Package, Calendar, User, CreditCard, MapPin, Truck, CheckCircle, XCircle, Clock, Filter, TrendingUp, Users, DollarSign } from "lucide-react";
+import { TableSkeleton, StatsSkeleton } from "@/components/ui/loading-skeleton";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 import OrderDetailsModal from "@/components/OrderDetailsModal";
@@ -226,64 +228,95 @@ export default function OrderManagement() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Manajemen Pesanan</CardTitle>
+    <Card className="shadow-lg border-0 overflow-hidden">
+      <CardHeader className="bg-gradient-to-r from-orange-50 to-red-50">
+        <CardTitle className="flex items-center gap-2">
+          <div className="p-2 bg-orange-100 rounded-lg">
+            <Package className="h-5 w-5 text-orange-600" />
+          </div>
+          Manajemen Pesanan
+        </CardTitle>
         <CardDescription>
-          Kelola pesanan dan status pengiriman
+          Kelola pesanan dan status pengiriman dengan mudah
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="p-6 space-y-6">
         {/* Statistics Cards */}
-        {statistics && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <Card>
-              <CardContent className="pt-6">
+        {statistics ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <Card className="border-0 shadow-md hover:shadow-lg transition-shadow">
+              <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total Pesanan</p>
-                    <p className="text-2xl font-bold">{statistics.total_orders}</p>
+                    <p className="text-sm font-medium text-slate-600">Total Pesanan</p>
+                    <p className="text-3xl font-bold text-slate-900">{statistics.total_orders}</p>
+                    <p className="text-xs text-green-600 flex items-center mt-1">
+                      <TrendingUp className="h-3 w-3 mr-1" />
+                      +12% dari bulan lalu
+                    </p>
                   </div>
-                  <Package className="h-8 w-8 text-muted-foreground" />
+                  <div className="p-3 bg-blue-100 rounded-xl">
+                    <Package className="h-6 w-6 text-blue-600" />
+                  </div>
                 </div>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="pt-6">
+            <Card className="border-0 shadow-md hover:shadow-lg transition-shadow">
+              <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Pending</p>
-                    <p className="text-2xl font-bold text-yellow-600">{statistics.pending_orders}</p>
+                    <p className="text-sm font-medium text-slate-600">Pending</p>
+                    <p className="text-3xl font-bold text-yellow-600">{statistics.pending_orders}</p>
+                    <p className="text-xs text-yellow-600 flex items-center mt-1">
+                      <Clock className="h-3 w-3 mr-1" />
+                      Menunggu konfirmasi
+                    </p>
                   </div>
-                  <Clock className="h-8 w-8 text-yellow-600" />
+                  <div className="p-3 bg-yellow-100 rounded-xl">
+                    <Clock className="h-6 w-6 text-yellow-600" />
+                  </div>
                 </div>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="pt-6">
+            <Card className="border-0 shadow-md hover:shadow-lg transition-shadow">
+              <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Selesai</p>
-                    <p className="text-2xl font-bold text-green-600">{statistics.delivered_orders}</p>
+                    <p className="text-sm font-medium text-slate-600">Selesai</p>
+                    <p className="text-3xl font-bold text-green-600">{statistics.delivered_orders}</p>
+                    <p className="text-xs text-green-600 flex items-center mt-1">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Berhasil dikirim
+                    </p>
                   </div>
-                  <CheckCircle className="h-8 w-8 text-green-600" />
+                  <div className="p-3 bg-green-100 rounded-xl">
+                    <CheckCircle className="h-6 w-6 text-green-600" />
+                  </div>
                 </div>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="pt-6">
+            <Card className="border-0 shadow-md hover:shadow-lg transition-shadow">
+              <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Pendapatan</p>
+                    <p className="text-sm font-medium text-slate-600">Pendapatan</p>
                     <p className="text-2xl font-bold text-blue-600">
                       {formatCurrency(statistics.total_revenue)}
                     </p>
+                    <p className="text-xs text-blue-600 flex items-center mt-1">
+                      <TrendingUp className="h-3 w-3 mr-1" />
+                      +8.5% dari bulan lalu
+                    </p>
                   </div>
-                  <CreditCard className="h-8 w-8 text-blue-600" />
+                  <div className="p-3 bg-blue-100 rounded-xl">
+                    <DollarSign className="h-6 w-6 text-blue-600" />
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
+        ) : (
+          <StatsSkeleton count={4} />
         )}
 
         {/* Search and Actions */}
@@ -395,11 +428,11 @@ export default function OrderManagement() {
 
         {/* Orders Table */}
         {isLoading ? (
-          <div className="text-center py-8">Loading...</div>
+          <TableSkeleton rows={5} columns={8} />
         ) : (
-          <div className="border rounded-lg">
+          <div className="border border-slate-200 rounded-lg overflow-hidden">
             <Table>
-              <TableHeader>
+              <TableHeader className="bg-slate-50">
                 <TableRow>
                   <TableHead className="w-12">
                     <Checkbox
@@ -421,7 +454,10 @@ export default function OrderManagement() {
               </TableHeader>
               <TableBody>
                 {filteredOrders.map((order) => (
-                  <TableRow key={order.id}>
+                  <TableRow 
+                    key={order.id} 
+                    className="hover:bg-slate-50 transition-colors"
+                  >
                     <TableCell>
                       <Checkbox
                         checked={selectedOrders.includes(order.id)}
@@ -430,42 +466,67 @@ export default function OrderManagement() {
                     </TableCell>
                     <TableCell>
                       <div>
-                        <div className="font-medium">{order.order_number}</div>
-                        <div className="text-sm text-muted-foreground">
+                        <div className="font-medium text-slate-900">{order.order_number}</div>
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs ${
+                            order.payment_method === 'cash_on_delivery' 
+                              ? 'border-orange-200 text-orange-700 bg-orange-50' 
+                              : 'border-blue-200 text-blue-700 bg-blue-50'
+                          }`}
+                        >
                           {order.payment_method === 'cash_on_delivery' ? 'COD' : 'QRIS'}
+                        </Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={order.customer_avatar} />
+                          <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-500 text-white text-xs">
+                            {order.customer_name?.charAt(0) || 'U'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-medium text-slate-900">{order.customer_name}</div>
+                          <div className="text-sm text-slate-500">{order.customer_phone}</div>
+                          {order.customer_email && (
+                            <div className="text-xs text-slate-400">{order.customer_email}</div>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 bg-slate-100 rounded-lg">
+                          <Package className="h-4 w-4 text-slate-600" />
+                        </div>
+                        <div>
+                          <div className="font-medium text-slate-900">
+                            {order.order_items?.length || 0} item(s)
+                          </div>
+                          {order.order_items && order.order_items.length > 0 && (
+                            <div className="text-xs text-slate-500">
+                              {order.order_items[0].product?.name}
+                              {order.order_items.length > 1 && ` +${order.order_items.length - 1} lainnya`}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div>
-                        <div className="font-medium">{order.customer_name}</div>
-                        <div className="text-sm text-muted-foreground">{order.customer_phone}</div>
-                        {order.customer_email && (
-                          <div className="text-sm text-muted-foreground">{order.customer_email}</div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {order.order_items?.length || 0} item(s)
-                      </div>
-                      {order.order_items && order.order_items.length > 0 && (
-                        <div className="text-xs text-muted-foreground">
-                          {order.order_items[0].product?.name}
-                          {order.order_items.length > 1 && ` +${order.order_items.length - 1} lainnya`}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{formatCurrency(order.total_amount)}</div>
-                        <div className="text-sm text-muted-foreground">
+                        <div className="font-bold text-slate-900">{formatCurrency(order.total_amount)}</div>
+                        <div className="text-sm text-slate-500">
                           Subtotal: {formatCurrency(order.subtotal)}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge className={statusColors[order.status]} variant="secondary">
+                      <Badge 
+                        className={`${statusColors[order.status]} border-0`}
+                        variant="secondary"
+                      >
                         <div className="flex items-center gap-1">
                           {getStatusIcon(order.status)}
                           {order.status === 'pending' ? 'Pending' :
@@ -478,8 +539,11 @@ export default function OrderManagement() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="text-sm">
-                        {formatDate(order.created_at)}
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-slate-400" />
+                        <div className="text-sm text-slate-600">
+                          {formatDate(order.created_at)}
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
@@ -488,15 +552,17 @@ export default function OrderManagement() {
                           variant="ghost"
                           size="sm"
                           onClick={() => openDetailsDialog(order.id)}
+                          className="hover:bg-blue-50"
                         >
-                          <Eye className="h-4 w-4" />
+                          <Eye className="h-4 w-4 text-blue-600" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => openStatusDialog(order.id)}
+                          className="hover:bg-green-50"
                         >
-                          <Edit className="h-4 w-4" />
+                          <Edit className="h-4 w-4 text-green-600" />
                         </Button>
                       </div>
                     </TableCell>

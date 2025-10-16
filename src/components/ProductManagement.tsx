@@ -21,7 +21,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, Edit, Trash2, Plus, Eye, EyeOff } from "lucide-react";
+import { Search, Edit, Trash2, Plus, Eye, EyeOff, Image as ImageIcon, Package, TrendingUp, AlertTriangle } from "lucide-react";
+import { TableSkeleton } from "@/components/ui/loading-skeleton";
 
 interface ProductFormData {
   name: string;
@@ -467,14 +468,19 @@ export default function ProductManagement() {
   );
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Manajemen Produk</CardTitle>
+    <Card className="shadow-lg border-0 overflow-hidden">
+      <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50">
+        <CardTitle className="flex items-center gap-2">
+          <div className="p-2 bg-green-100 rounded-lg">
+            <Package className="h-5 w-5 text-green-600" />
+          </div>
+          Manajemen Produk
+        </CardTitle>
         <CardDescription>
-          Kelola produk di toko Anda
+          Kelola produk di toko Anda dengan mudah
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="p-6 space-y-6">
         {/* Search and Actions */}
         <div className="flex justify-between items-center gap-4">
           <div className="flex items-center gap-2 flex-1">
@@ -484,16 +490,16 @@ export default function ProductManagement() {
                 placeholder="Cari produk..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
+                className="pl-9 border-slate-200 focus:border-green-500 focus:ring-green-500"
               />
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {selectedProducts.length > 0 && (
               <>
                 <Select onValueChange={(value: ProductStatus) => handleBulkStatusUpdate(value)}>
-                  <SelectTrigger className="w-40">
+                  <SelectTrigger className="w-40 border-slate-200">
                     <SelectValue placeholder="Ubah Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -502,22 +508,25 @@ export default function ProductManagement() {
                     <SelectItem value="out_of_stock">Stok Habis</SelectItem>
                   </SelectContent>
                 </Select>
-                <span className="text-sm text-muted-foreground">
+                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
                   {selectedProducts.length} dipilih
-                </span>
+                </Badge>
               </>
             )}
             
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
+                <Button className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-md">
                   <Plus className="h-4 w-4 mr-2" />
                   Tambah Produk
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Tambah Produk Baru</DialogTitle>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Plus className="h-5 w-5 text-green-600" />
+                    Tambah Produk Baru
+                  </DialogTitle>
                 </DialogHeader>
                 <ProductForm />
               </DialogContent>
@@ -527,11 +536,11 @@ export default function ProductManagement() {
 
         {/* Products Table */}
         {isLoading ? (
-          <div className="text-center py-8">Loading...</div>
+          <TableSkeleton rows={5} columns={7} />
         ) : (
-          <div className="border rounded-lg">
+          <div className="border border-slate-200 rounded-lg overflow-hidden">
             <Table>
-              <TableHeader>
+              <TableHeader className="bg-slate-50">
                 <TableRow>
                   <TableHead className="w-12">
                     <Checkbox
@@ -552,7 +561,10 @@ export default function ProductManagement() {
               </TableHeader>
               <TableBody>
                 {filteredProducts.map((product) => (
-                  <TableRow key={product.id}>
+                  <TableRow 
+                    key={product.id} 
+                    className="hover:bg-slate-50 transition-colors"
+                  >
                     <TableCell>
                       <Checkbox
                         checked={selectedProducts.includes(product.id)}
@@ -560,30 +572,60 @@ export default function ProductManagement() {
                       />
                     </TableCell>
                     <TableCell>
-                      <div>
-                        <div className="font-medium">{product.name}</div>
-                        <div className="text-sm text-muted-foreground">{product.sku}</div>
-                        {product.is_featured && (
-                          <Badge variant="secondary" className="mt-1">Unggulan</Badge>
-                        )}
+                      <div className="flex items-center gap-3">
+                        {/* Product Image */}
+                        <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden">
+                          {product.images && product.images.length > 0 ? (
+                            <img
+                              src={product.images[0]}
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                e.currentTarget.nextElementSibling.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div className="w-full h-full flex items-center justify-center text-slate-400" style={{ display: product.images && product.images.length > 0 ? 'none' : 'flex' }}>
+                            <ImageIcon className="h-5 w-5" />
+                          </div>
+                        </div>
+                        
+                        <div className="flex-1">
+                          <div className="font-medium text-slate-900">{product.name}</div>
+                          <div className="text-sm text-slate-500">{product.sku}</div>
+                          {product.is_featured && (
+                            <Badge variant="secondary" className="mt-1 bg-yellow-100 text-yellow-800">
+                              <TrendingUp className="h-3 w-3 mr-1" />
+                              Unggulan
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
-                    <TableCell>{product.category?.name || "-"}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="border-slate-200">
+                        {product.category?.name || "-"}
+                      </Badge>
+                    </TableCell>
                     <TableCell>
                       <div>
-                        <div>Rp {product.price?.toLocaleString()}</div>
+                        <div className="font-medium text-slate-900">Rp {product.price?.toLocaleString()}</div>
                         {product.original_price && product.original_price > product.price && (
-                          <div className="text-sm text-muted-foreground line-through">
+                          <div className="text-sm text-slate-500 line-through">
                             Rp {product.original_price.toLocaleString()}
                           </div>
                         )}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div>
-                        {product.stock_quantity || 0}
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{product.stock_quantity || 0}</span>
                         {(product.stock_quantity || 0) <= (product.min_stock_level || 5) && (
-                          <Badge variant="destructive" className="ml-2">Low</Badge>
+                          <Badge variant="destructive" className="bg-red-100 text-red-800">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            Low
+                          </Badge>
                         )}
                       </div>
                     </TableCell>
@@ -596,6 +638,13 @@ export default function ProductManagement() {
                             ? "secondary"
                             : "destructive"
                         }
+                        className={
+                          product.status === "active"
+                            ? "bg-green-100 text-green-800"
+                            : product.status === "inactive"
+                            ? "bg-slate-100 text-slate-800"
+                            : "bg-red-100 text-red-800"
+                        }
                       >
                         {product.status === "active" ? "Aktif" : 
                          product.status === "inactive" ? "Tidak Aktif" : "Stok Habis"}
@@ -607,24 +656,26 @@ export default function ProductManagement() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleToggleStatus(product.id)}
+                          className="hover:bg-slate-100"
                         >
                           {product.status === "active" ? (
-                            <EyeOff className="h-4 w-4" />
+                            <EyeOff className="h-4 w-4 text-slate-600" />
                           ) : (
-                            <Eye className="h-4 w-4" />
+                            <Eye className="h-4 w-4 text-slate-600" />
                           )}
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleEdit(product)}
+                          className="hover:bg-blue-50"
                         >
-                          <Edit className="h-4 w-4" />
+                          <Edit className="h-4 w-4 text-blue-600" />
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <Trash2 className="h-4 w-4" />
+                            <Button variant="ghost" size="sm" className="hover:bg-red-50">
+                              <Trash2 className="h-4 w-4 text-red-600" />
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
@@ -658,7 +709,10 @@ export default function ProductManagement() {
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Edit Produk</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <Edit className="h-5 w-5 text-blue-600" />
+                Edit Produk
+              </DialogTitle>
             </DialogHeader>
             <ProductForm />
           </DialogContent>

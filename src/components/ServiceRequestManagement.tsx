@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Database } from "@/integrations/supabase/types";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -29,7 +29,13 @@ import {
   Image,
   ExternalLink,
   File,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Settings,
 } from "lucide-react";
+import { TableSkeleton, StatsSkeleton } from "@/components/ui/loading-skeleton";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 type ServiceRequest = Database["public"]["Tables"]["service_requests"]["Row"];
 type RequestStatus = Database["public"]["Enums"]["request_status"];
@@ -149,10 +155,10 @@ const ServiceRequestManagement = () => {
   };
 
   const statusConfig = {
-    pending: { label: "Menunggu", color: "bg-yellow-100 text-yellow-800", icon: "⏳" },
-    on_process: { label: "Diproses", color: "bg-blue-100 text-blue-800", icon: "⚙️" },
-    completed: { label: "Selesai", color: "bg-green-100 text-green-800", icon: "✅" },
-    cancelled: { label: "Dibatalkan", color: "bg-red-100 text-red-800", icon: "❌" },
+    pending: { label: "Menunggu", color: "bg-yellow-100 text-yellow-800", icon: Clock },
+    on_process: { label: "Diproses", color: "bg-blue-100 text-blue-800", icon: Settings },
+    completed: { label: "Selesai", color: "bg-green-100 text-green-800", icon: CheckCircle },
+    cancelled: { label: "Dibatalkan", color: "bg-red-100 text-red-800", icon: XCircle },
   };
 
   const formatDate = (dateString: string) => {
@@ -310,10 +316,12 @@ const ServiceRequestManagement = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold">Layanan Desa</h2>
-          <p className="text-muted-foreground">Kelola permohonan layanan administrasi desa</p>
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+            Layanan Desa
+          </h2>
+          <p className="text-slate-600 mt-1">Kelola permohonan layanan administrasi desa</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-3">
           <Button 
             variant="outline"
             onClick={() => {
@@ -323,11 +331,16 @@ const ServiceRequestManagement = () => {
                 description: "Loading latest service requests...",
               });
             }}
+            className="border-slate-200 hover:bg-slate-50"
           >
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
-          <Button onClick={exportToCSV} disabled={!requests || requests.length === 0}>
+          <Button 
+            onClick={exportToCSV} 
+            disabled={!requests || requests.length === 0}
+            className="bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 shadow-md"
+          >
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
@@ -335,18 +348,23 @@ const ServiceRequestManagement = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {Object.entries(statusConfig).map(([status, config]) => {
           const count = requests?.filter(r => r.status === status).length || 0;
+          const IconComponent = config.icon;
           return (
-            <Card key={status} className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{config.label}</p>
-                  <p className="text-2xl font-bold">{count}</p>
+            <Card key={status} className="border-0 shadow-md hover:shadow-lg transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-600">{config.label}</p>
+                    <p className="text-3xl font-bold text-slate-900">{count}</p>
+                  </div>
+                  <div className={`p-3 rounded-xl ${config.color.replace('text-', 'bg-').replace('-100', '-50')}`}>
+                    <IconComponent className={`h-6 w-6 ${config.color.split(' ')[1]}`} />
+                  </div>
                 </div>
-                <span className="text-2xl">{config.icon}</span>
-              </div>
+              </CardContent>
             </Card>
           );
         })}
@@ -420,88 +438,118 @@ const ServiceRequestManagement = () => {
       </Card>
 
       {/* Requests Table */}
-      <Card>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="border-b">
-              <tr>
-                <th className="text-left p-4">Nomor</th>
-                <th className="text-left p-4">Nama</th>
-                <th className="text-left p-4">Layanan</th>
-                <th className="text-left p-4">Status</th>
-                <th className="text-left p-4">Dokumen</th>
-                <th className="text-left p-4">Tanggal</th>
-                <th className="text-left p-4">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
+      <Card className="shadow-lg border-0 overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-pink-50 to-purple-50">
+          <CardTitle className="flex items-center gap-2">
+            <div className="p-2 bg-pink-100 rounded-lg">
+              <FileText className="h-5 w-5 text-pink-600" />
+            </div>
+            Daftar Permohonan
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="border-b bg-slate-50">
                 <tr>
-                  <td colSpan={7} className="text-center p-8">
-                    <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
-                    Loading...
-                  </td>
+                  <th className="text-left p-4 font-medium text-slate-900">Nomor</th>
+                  <th className="text-left p-4 font-medium text-slate-900">Nama</th>
+                  <th className="text-left p-4 font-medium text-slate-900">Layanan</th>
+                  <th className="text-left p-4 font-medium text-slate-900">Status</th>
+                  <th className="text-left p-4 font-medium text-slate-900">Dokumen</th>
+                  <th className="text-left p-4 font-medium text-slate-900">Tanggal</th>
+                  <th className="text-left p-4 font-medium text-slate-900">Aksi</th>
                 </tr>
-              ) : requests && requests.length > 0 ? (
-                requests.map((request) => (
-                  <tr key={request.id} className="border-b hover:bg-muted/50">
-                    <td className="p-4">
-                      <div className="font-medium">{request.request_number}</div>
-                      <div className="text-sm text-muted-foreground">{request.nik}</div>
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={7} className="text-center p-8">
+                      <TableSkeleton rows={3} columns={7} />
                     </td>
-                    <td className="p-4">
-                      <div className="font-medium">{request.full_name}</div>
-                      <div className="text-sm text-muted-foreground flex items-center">
-                        <Phone className="h-3 w-3 mr-1" />
-                        {request.phone_number}
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="font-medium">{serviceTypeNames[request.service_type]}</div>
-                    </td>
-                    <td className="p-4">
-                      <Badge className={statusConfig[request.status || "pending"].color}>
-                        {statusConfig[request.status || "pending"].label}
-                      </Badge>
-                    </td>
-                    <td className="p-4">
-                      {(() => {
-                        const docs = request.documents as { files?: string[] } | null;
-                        return docs && docs.files && Array.isArray(docs.files) && docs.files.length > 0 ? (
-                          <div className="flex items-center text-xs text-green-600">
-                            <Image className="h-3 w-3 mr-1" />
-                            {docs.files.length} file{docs.files.length > 1 ? 's' : ''}
+                  </tr>
+                ) : requests && requests.length > 0 ? (
+                  requests.map((request, index) => (
+                    <tr 
+                      key={request.id} 
+                      className={`border-b hover:bg-slate-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-25'}`}
+                    >
+                      <td className="p-4">
+                        <div className="font-medium text-slate-900">{request.request_number}</div>
+                        <div className="text-sm text-slate-500">{request.nik}</div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={request.avatar_url} />
+                            <AvatarFallback className="bg-gradient-to-br from-pink-500 to-purple-500 text-white text-xs">
+                              {request.full_name?.charAt(0) || 'U'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-medium text-slate-900">{request.full_name}</div>
+                            <div className="text-sm text-slate-500 flex items-center">
+                              <Phone className="h-3 w-3 mr-1" />
+                              {request.phone_number}
+                            </div>
                           </div>
-                      ) : (
-                        <div className="flex items-center text-xs text-muted-foreground">
-                          <FileText className="h-3 w-3 mr-1" />
-                          Tidak ada
                         </div>
-                      );
-                    })()}
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center text-sm">
-                        <Calendar className="h-3 w-3 mr-1" />
-                        {formatDate(request.created_at || "")}
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex space-x-2">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => {
-                                setSelectedRequest(request);
-                                loadDocuments(request);
-                              }}
-                            >
-                              <Eye className="h-3 w-3 mr-1" />
-                              Detail
-                            </Button>
-                          </DialogTrigger>
+                      </td>
+                      <td className="p-4">
+                        <Badge variant="outline" className="border-slate-200">
+                          {serviceTypeNames[request.service_type]}
+                        </Badge>
+                      </td>
+                      <td className="p-4">
+                        <Badge className={statusConfig[request.status || "pending"].color}>
+                          <div className="flex items-center gap-1">
+                            {(() => {
+                              const IconComponent = statusConfig[request.status || "pending"].icon;
+                              return <IconComponent className="h-3 w-3" />;
+                            })()}
+                            {statusConfig[request.status || "pending"].label}
+                          </div>
+                        </Badge>
+                      </td>
+                      <td className="p-4">
+                        {(() => {
+                          const docs = request.documents as { files?: string[] } | null;
+                          return docs && docs.files && Array.isArray(docs.files) && docs.files.length > 0 ? (
+                            <div className="flex items-center text-xs text-green-600">
+                              <Image className="h-3 w-3 mr-1" />
+                              {docs.files.length} file{docs.files.length > 1 ? 's' : ''}
+                            </div>
+                        ) : (
+                          <div className="flex items-center text-xs text-slate-500">
+                            <FileText className="h-3 w-3 mr-1" />
+                            Tidak ada
+                          </div>
+                        );
+                      })()}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center text-sm text-slate-600">
+                          <Calendar className="h-3 w-3 mr-1" />
+                          {formatDate(request.created_at || "")}
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex space-x-2">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedRequest(request);
+                                  loadDocuments(request);
+                                }}
+                                className="hover:bg-blue-50 border-slate-200"
+                              >
+                                <Eye className="h-3 w-3 mr-1" />
+                                Detail
+                              </Button>
+                            </DialogTrigger>
                           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
                               <DialogTitle>Detail Permohonan</DialogTitle>
@@ -640,6 +688,7 @@ const ServiceRequestManagement = () => {
             </tbody>
           </table>
         </div>
+        </CardContent>
       </Card>
 
       {/* Edit Status Dialog */}
